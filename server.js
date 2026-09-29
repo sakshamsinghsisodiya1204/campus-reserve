@@ -2,18 +2,14 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 
 const db = require('./database');
 const { authenticateToken, requireRole } = require('./middleware/auth');
-const { notifyUser } = require('./services/notificationService');
-const emailService = require('./services/emailService');
+const authRouter = require('./routes/auth');
 const reservationsRouter = require('./routes/reservations');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'academic_secret_key_2026';
 
 // ── Global Middleware ─────────────────────────────────────────────────────────
 app.use(cors());
@@ -21,7 +17,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Database Async Helpers ───────────────────────────────────────────────────
 function dbGet(query, params) {
   return new Promise((resolve, reject) => {
     db.get(query, params, (err, row) => (err ? reject(err) : resolve(row)));
@@ -41,54 +37,9 @@ function dbAll(query, params) {
   });
 }
 
-// ── Auth Routes ───────────────────────────────────────────────────────────────
-
-// POST /api/auth/login
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.' });
-    }
-
-    const user = await dbGet('SELECT * FROM users WHERE email = ?', [email.toLowerCase().trim()]);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials.' });
-    }
-
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) {
-      return res.status(401).json({ error: 'Invalid credentials.' });
-    }
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    res.json({
-      message: 'Login successful.',
-      token,
-      user: {
-        id: user.id,
-        full_name: user.full_name,
-        email: user.email,
-        role: user.role,
-        department: user.department,
-        email_notifications_enabled: user.email_notifications_enabled
-      }
-    });
-  } catch (err) {
-    console.error('[POST /auth/login]', err);
-    res.status(500).json({ error: 'Login failed.' });
-  }
-});
-
-// GET /api/auth/me
-app.get('/api/auth/me', authenticateToken, (req, res) => {
-  res.json({ user: req.user });
-});
+// ── Mount Sub-Routers ────────────────────────────────────────────────────────
+app.use('/api/auth', authRouter);
+app.use('/api/reservations', reservationsRouter);
 
 // ── Resources Routes ──────────────────────────────────────────────────────────
 
@@ -137,9 +88,6 @@ app.get('/api/resources/:id/availability', authenticateToken, async (req, res) =
   }
 });
 
-// ── Reservations Routes ───────────────────────────────────────────────────────
-app.use('/api/reservations', reservationsRouter);
-
 // ── Notifications Routes ──────────────────────────────────────────────────────
 
 // GET /api/notifications
@@ -157,7 +105,7 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
   }
 });
 
-// PATCH /api/notifications/read-all  (must come BEFORE /:id/read)
+// PATCH /api/notifications/read-all
 app.patch('/api/notifications/read-all', authenticateToken, async (req, res) => {
   try {
     await dbRun(`UPDATE notifications SET is_read = 1 WHERE user_id = ?`, [req.user.id]);
@@ -185,19 +133,28 @@ app.patch('/api/notifications/:id/read', authenticateToken, async (req, res) => 
   }
 });
 
-// ── Admin Routes ──────────────────────────────────────────────────────────────
+// ── Email Logs & Audit Routes ─────────────────────────────────────────────────
 
 // GET /api/admin/email-logs
-app.get('/api/admin/email-logs', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
+// Open to all authenticated users so researchers can inspect their own dispatches & demo testers can evaluate live email delivery
+app.get('/api/admin/email-logs', authenticateToken, async (req, res) => {
   try {
-    const logs = await dbAll(
-      `SELECT el.*, u.full_name, u.email AS user_email
-       FROM email_logs el
-       LEFT JOIN users u ON el.user_id = u.id
-       ORDER BY el.sent_at DESC
-       LIMIT 200`,
-      []
-    );
+    let query = `
+      SELECT el.*, u.full_name, u.email AS user_email
+      FROM email_logs el
+      LEFT JOIN users u ON el.user_id = u.id
+    `;
+    let params = [];
+
+    // Students only see their own emails, Faculty and Admin see institutional ledger
+    if (req.user.role === 'STUDENT') {
+      query += ` WHERE el.recipient_email = ? OR el.user_id = ?`;
+      params.push(req.user.email, req.user.id);
+    }
+
+    query += ` ORDER BY el.sent_at DESC LIMIT 150`;
+
+    const logs = await dbAll(query, params);
     res.json({ logs, count: logs.length });
   } catch (err) {
     console.error('[GET /admin/email-logs]', err);
@@ -205,12 +162,95 @@ app.get('/api/admin/email-logs', authenticateToken, requireRole(['ADMIN']), asyn
   }
 });
 
+
+// ── Admin Dashboard Stats Route ────────────────────────────────────────────
+// GET /api/admin/stats (ADMIN only)
+app.get('/api/admin/stats', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
+  try {
+    const [totalUsers, totalResources, totalReservations, pendingCount, approvedToday, rejectedCount] = await Promise.all([
+      dbGet('SELECT COUNT(*) as count FROM users', []),
+      dbGet('SELECT COUNT(*) as count FROM resources WHERE is_under_maintenance = 0', []),
+      dbGet('SELECT COUNT(*) as count FROM reservations', []),
+      dbGet("SELECT COUNT(*) as count FROM reservations WHERE status = 'PENDING'", []),
+      dbGet("SELECT COUNT(*) as count FROM reservations WHERE status = 'APPROVED' AND booking_date = date('now')", []),
+      dbGet("SELECT COUNT(*) as count FROM reservations WHERE status = 'REJECTED'", [])
+    ]);
+    const recentActivity = await dbAll(`
+      SELECT r.booking_code, r.status, r.booking_date, r.start_time, r.end_time,
+             u.full_name, u.role, res.name as resource_name
+      FROM reservations r
+      JOIN users u ON r.user_id = u.id
+      JOIN resources res ON r.resource_id = res.id
+      ORDER BY r.created_at DESC LIMIT 10
+    `, []);
+    const resourceUtilization = await dbAll(`
+      SELECT res.name, res.category, COUNT(r.id) as total_bookings,
+             SUM(CASE WHEN r.status = 'APPROVED' THEN 1 ELSE 0 END) as approved,
+             SUM(CASE WHEN r.status = 'PENDING' THEN 1 ELSE 0 END) as pending
+      FROM resources res
+      LEFT JOIN reservations r ON res.id = r.resource_id
+      GROUP BY res.id ORDER BY total_bookings DESC
+    `, []);
+    const usersByRole = await dbAll('SELECT role, COUNT(*) as count FROM users GROUP BY role', []);
+    res.json({
+      summary: {
+        total_users: totalUsers.count,
+        active_resources: totalResources.count,
+        total_reservations: totalReservations.count,
+        pending_approvals: pendingCount.count,
+        approved_today: approvedToday.count,
+        rejected: rejectedCount.count
+      },
+      recent_activity: recentActivity,
+      resource_utilization: resourceUtilization,
+      users_by_role: usersByRole
+    });
+  } catch (err) {
+    console.error('[GET /admin/stats]', err);
+    res.status(500).json({ error: 'Failed to fetch admin stats.' });
+  }
+});
+
+// GET /api/calendar?month=YYYY-MM
+app.get('/api/calendar', authenticateToken, async (req, res) => {
+  try {
+    const { month } = req.query;
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ error: 'A valid month parameter (YYYY-MM) is required.' });
+    }
+    const startDate = month + '-01';
+    const [year, mon] = month.split('-').map(Number);
+    const lastDay = new Date(year, mon, 0).getDate();
+    const endDate = month + '-' + String(lastDay).padStart(2, '0');
+    let query, params;
+    if (req.user.role === 'ADMIN' || req.user.role === 'FACULTY') {
+      query = `SELECT r.id, r.booking_code, r.booking_date, r.start_time, r.end_time,
+               r.status, r.purpose, u.full_name, u.role as user_role, res.name as resource_name, res.category
+        FROM reservations r JOIN users u ON r.user_id = u.id JOIN resources res ON r.resource_id = res.id
+        WHERE r.booking_date BETWEEN ? AND ? ORDER BY r.booking_date, r.start_time`;
+      params = [startDate, endDate];
+    } else {
+      query = `SELECT r.id, r.booking_code, r.booking_date, r.start_time, r.end_time,
+               r.status, r.purpose, u.full_name, u.role as user_role, res.name as resource_name, res.category
+        FROM reservations r JOIN users u ON r.user_id = u.id JOIN resources res ON r.resource_id = res.id
+        WHERE r.booking_date BETWEEN ? AND ? AND r.user_id = ? ORDER BY r.booking_date, r.start_time`;
+      params = [startDate, endDate, req.user.id];
+    }
+    const events = await dbAll(query, params);
+    res.json({ month, events, count: events.length });
+  } catch (err) {
+    console.error('[GET /calendar]', err);
+    res.status(500).json({ error: 'Failed to fetch calendar data.' });
+  }
+});
+
+
 // ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'CampusReserve API',
-    version: '1.0.0',
+    version: '2.0.0',
     timestamp: new Date().toISOString()
   });
 });
@@ -228,13 +268,14 @@ app.use((err, req, res, next) => {
 
 // ── Start Server ──────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`\n🎓 CampusReserve API running on http://localhost:${PORT}`);
-  console.log(`   ✅ Health: http://localhost:${PORT}/api/health`);
-  console.log(`   📋 Auth:   POST /api/auth/login`);
-  console.log(`   🏛️  Res:    GET  /api/resources`);
-  console.log(`   📅 Book:   POST /api/reservations`);
-  console.log(`   🔔 Notif:  GET  /api/notifications`);
-  console.log(`   📧 Logs:   GET  /api/admin/email-logs\n`);
+  console.log(`\n============================================================`);
+  console.log(`🏛️  CampusReserve Academic System running on http://localhost:${PORT}`);
+  console.log(`   • Register / Login: /api/auth/register & /api/auth/login`);
+  console.log(`   • Resources:        /api/resources`);
+  console.log(`   • Reservations:     /api/reservations`);
+  console.log(`   • Notifications:    /api/notifications`);
+  console.log(`   • Email Telemetry:  /api/admin/email-logs`);
+  console.log(`============================================================\n`);
 });
 
 module.exports = app;

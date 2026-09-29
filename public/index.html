@@ -3,353 +3,457 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CampusReserve | MIT-WPU Facility & Equipment Portal</title>
-  <!-- Google Fonts: Inter -->
+  <title>CampusReserve — MIT-WPU Academic Allocation Portal</title>
+  <meta name="description" content="University facility booking and resource allocation portal powered by CampusReserve.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <!-- FontAwesome -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Top Navigation Bar -->
-  <header class="navbar">
-    <div class="nav-left">
-      <div class="logo">
-        <i class="fa-solid fa-graduation-cap"></i>
-        <span>Campus<span class="accent-text">Reserve</span></span>
+
+  <!-- ═══ LEFT SIDEBAR ═══════════════════════════════════════════════════════ -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Brand -->
+    <div class="sidebar-brand">
+      <div class="brand-mark">✦</div>
+      <div class="brand-text-block">
+        <span class="brand-name">CampusReserve</span>
+        <span class="brand-inst">MIT World Peace University</span>
       </div>
-      <span class="sub-badge">MIT-WPU Smart Campus</span>
     </div>
 
-    <div class="nav-right">
-      <!-- One-Click Role Simulator -->
-      <div class="role-selector-container">
-        <label for="roleSwitcher"><i class="fa-solid fa-user-gear"></i> Role Sim:</label>
-        <select id="roleSwitcher" class="role-select">
-          <option value="student">Student: Saksham Sisodiya</option>
-          <option value="faculty">Faculty: Prof. Yogini Mukherjee</option>
-          <option value="admin">Admin: Facility Manager</option>
-        </select>
-      </div>
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">Workspace</span>
+      <button class="sidebar-btn active" data-tab="tab-reserve" id="nav-reserve">
+        <i class="fa-regular fa-calendar-plus"></i>
+        <span>Book a Facility</span>
+      </button>
+      <button class="sidebar-btn" data-tab="tab-my-bookings" id="nav-my-bookings">
+        <i class="fa-solid fa-list-check"></i>
+        <span>My Bookings</span>
+        <span class="nav-pill" id="myBookingsPill">0</span>
+      </button>
+      <button class="sidebar-btn" data-tab="tab-calendar" id="nav-calendar">
+        <i class="fa-regular fa-calendar-days"></i>
+        <span>Calendar View</span>
+      </button>
 
-      <!-- Current User Badge -->
-      <div class="user-badge" id="currentUserBadge">
-        <div class="avatar" id="userAvatar">S</div>
-        <div class="user-meta">
-          <span class="user-name" id="userName">Saksham Sisodiya</span>
-          <span class="user-role-tag" id="userRoleTag">STUDENT</span>
-        </div>
-      </div>
+      <span class="nav-section-label" style="margin-top:12px">Operations</span>
+      <button class="sidebar-btn restricted-nav hidden" data-tab="tab-approvals" id="approvalsTabBtn">
+        <i class="fa-solid fa-signature"></i>
+        <span>Approval Desk</span>
+        <span class="nav-pill pill-amber" id="pendingApprovalsCount">0</span>
+      </button>
+      <button class="sidebar-btn restricted-nav hidden" data-tab="tab-admin" id="adminDashTabBtn">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>Admin Dashboard</span>
+        <span class="nav-pill pill-amber">ADMIN</span>
+      </button>
+      <button class="sidebar-btn" data-tab="tab-email-ledger" id="nav-email">
+        <i class="fa-solid fa-tower-broadcast"></i>
+        <span>Mail Telemetry</span>
+        <span class="nav-pill pill-live">LIVE</span>
+      </button>
+    </nav>
 
-      <!-- Notification Bell -->
-      <div class="notification-bell-wrapper">
-        <button id="notifBellBtn" class="icon-btn" aria-label="Notifications" title="Notifications">
-          <i class="fa-solid fa-bell"></i>
-          <span id="notifBadge" class="badge">0</span>
+    <!-- Notification Override / Live Recipient -->
+    <div class="sidebar-recipient-box">
+      <div class="recipient-label"><i class="fa-solid fa-paper-plane"></i> Live Dispatch Target</div>
+      <div class="recipient-display" id="currentRecipientDisplay">—</div>
+      <div class="override-row">
+        <input type="email" id="overrideEmailInput" class="override-input" placeholder="Override recipient email…">
+        <button id="applyOverrideBtn" class="override-btn" title="Apply">
+          <i class="fa-solid fa-check"></i>
         </button>
+      </div>
+      <div class="override-hint">Emails will be sent to the overridden address</div>
+    </div>
 
-        <!-- Notification Dropdown Panel -->
-        <div id="notifDropdown" class="notif-dropdown hidden">
-          <div class="notif-header">
-            <h4><i class="fa-solid fa-bell"></i> In-App Alerts</h4>
-            <button id="markAllReadBtn" class="btn-link">Mark all read</button>
+    <!-- Notification bell -->
+    <div class="sidebar-notif">
+      <div class="notif-anchor">
+        <button id="notifBellBtn" class="sidebar-notif-btn">
+          <i class="fa-regular fa-bell"></i>
+          <span id="notifBadge" class="notif-count">0</span>
+          <span>Notifications</span>
+        </button>
+        <div id="notifFlyout" class="notif-flyout hidden">
+          <div class="notif-flyout-head">
+            <span>System Alerts</span>
+            <button id="markAllReadBtn" class="text-btn">Mark all read</button>
           </div>
-          <div id="notifList" class="notif-list">
-            <div class="empty-state">No notifications yet.</div>
+          <div id="notifList" class="notif-scroll-area">
+            <div class="empty-state">No unread notifications.</div>
           </div>
         </div>
       </div>
     </div>
-  </header>
 
-  <!-- Main Navigation Tabs -->
-  <nav class="tab-nav">
-    <div class="tab-container">
-      <button class="tab-btn active" data-tab="tab-reserve">
-        <i class="fa-solid fa-calendar-plus"></i> Reserve Resource
-      </button>
-      <button class="tab-btn" data-tab="tab-catalog">
-        <i class="fa-solid fa-boxes-stacked"></i> Resource Catalog
-      </button>
-      <button class="tab-btn" data-tab="tab-my-reservations">
-        <i class="fa-solid fa-calendar-check"></i> My Reservations
-      </button>
-      <button class="tab-btn restricted-tab hidden" data-tab="tab-approvals" id="approvalsTabBtn">
-        <i class="fa-solid fa-clipboard-check"></i> Approvals Desk <span id="pendingApprovalsCount" class="tab-counter">0</span>
-      </button>
-      <button class="tab-btn restricted-admin hidden" data-tab="tab-audit" id="auditTabBtn">
-        <i class="fa-solid fa-envelope-open-text"></i> Email & Audit Ledger
+    <!-- User Profile -->
+    <div class="sidebar-profile" id="sidebarProfile">
+      <div class="profile-avatar" id="userInitials">?</div>
+      <div class="profile-info">
+        <div class="profile-name" id="userNameLabel">Not Signed In</div>
+        <div class="profile-email" id="userEmailLabel">—</div>
+        <span class="role-badge" id="userRoleBadge">GUEST</span>
+      </div>
+      <button id="authModalToggleBtn" class="profile-switch-btn" title="Switch / Sign Out">
+        <i class="fa-solid fa-arrow-right-arrow-left"></i>
       </button>
     </div>
-  </nav>
+  </aside>
 
-  <!-- Main Content Layout -->
-  <main class="main-content">
-    
-    <!-- TAB 1: Reserve Resource -->
+  <!-- ═══ MAIN WORKSPACE ══════════════════════════════════════════════════════ -->
+  <main class="workspace" id="mainWorkspace">
+
+    <!-- Demo Role Switcher Bar -->
+    <div class="demo-role-bar">
+      <span class="demo-role-label"><i class="fa-solid fa-bolt"></i> Demo Simulator:</span>
+      <button type="button" class="demo-role-pill" id="demoStudentPill" onclick="quickFillDemo('student')">
+        <i class="fa-solid fa-graduation-cap"></i> Student (Saksham)
+      </button>
+      <button type="button" class="demo-role-pill" id="demoFacultyPill" onclick="quickFillDemo('faculty')">
+        <i class="fa-solid fa-chalkboard-user"></i> Faculty (Prof. Yogini)
+      </button>
+      <button type="button" class="demo-role-pill" id="demoAdminPill" onclick="quickFillDemo('admin')">
+        <i class="fa-solid fa-user-shield"></i> Admin (Facility Mgr)
+      </button>
+    </div>
+
+    <!-- Top metrics bar -->
+    <div class="metrics-bar" id="metricsBar">
+      <div class="metric-card">
+        <i class="fa-solid fa-bolt metric-icon teal"></i>
+        <div class="metric-val" id="metUpcoming">—</div>
+        <div class="metric-label">Active Bookings</div>
+      </div>
+      <div class="metric-card">
+        <i class="fa-solid fa-building metric-icon violet"></i>
+        <div class="metric-val" id="metCatalog">—</div>
+        <div class="metric-label">Total Resources</div>
+      </div>
+      <div class="metric-card">
+        <i class="fa-solid fa-hourglass-half metric-icon amber"></i>
+        <div class="metric-val" id="metQueue">—</div>
+        <div class="metric-label">Review Queue</div>
+      </div>
+      <div class="metric-card">
+        <i class="fa-solid fa-calendar-check metric-icon green"></i>
+        <div class="metric-val" id="metMyTotal">—</div>
+        <div class="metric-label">My Bookings</div>
+      </div>
+    </div>
+
+    <!-- ── TAB: Book a Facility ─────────────────────────────────────────────── -->
     <section id="tab-reserve" class="tab-panel active">
       <div class="panel-header">
         <div>
-          <h2>Book University Facilities & Hardware</h2>
-          <p class="subtitle">Select your resource, verify real-time timetable availability, and reserve effortlessly.</p>
+          <h2 class="panel-title">Facility Reservation</h2>
+          <p class="panel-desc">Submit formal academic bookings for laboratories, specialized hardware, and lecture halls.</p>
         </div>
       </div>
 
-      <div class="grid-2-col">
-        <!-- Reservation Form -->
-        <div class="card form-card">
+      <div class="workbench-split">
+        <!-- Booking Form -->
+        <div class="glass-card form-card">
           <div class="card-header">
-            <h3><i class="fa-solid fa-pen-to-square"></i> New Reservation</h3>
-            <span class="pill-info" id="formPolicyHint">Instant Booking</span>
+            <h3>Reservation Specifications</h3>
+            <span class="policy-badge" id="policyIndicator">Instant Clearance</span>
           </div>
+
           <form id="reservationForm">
-            <div class="form-group">
-              <label for="resourceSelect"><i class="fa-solid fa-cube"></i> Select Resource</label>
+            <div class="field-group">
+              <label for="resourceSelect">Campus Resource / Equipment</label>
               <select id="resourceSelect" required>
-                <option value="" disabled selected>Loading campus inventory...</option>
+                <option value="">— Select a resource —</option>
               </select>
+              <div class="resource-meta hidden" id="resourceMeta"></div>
             </div>
-
-            <div class="form-group">
-              <label for="bookingDate"><i class="fa-solid fa-calendar-day"></i> Booking Date</label>
-              <input type="date" id="bookingDate" required>
-            </div>
-
-            <!-- Slot Presets -->
-            <div class="form-group">
-              <label><i class="fa-solid fa-clock"></i> Quick Slot Presets</label>
-              <div class="slot-presets">
-                <button type="button" class="preset-btn" data-start="09:00" data-end="11:00">09:00 - 11:00</button>
-                <button type="button" class="preset-btn" data-start="11:00" data-end="13:00">11:00 - 13:00</button>
-                <button type="button" class="preset-btn" data-start="14:00" data-end="16:00">14:00 - 16:00</button>
-                <button type="button" class="preset-btn" data-start="16:00" data-end="18:00">16:00 - 18:00</button>
+            <div class="field-row">
+              <div class="field-group">
+                <label for="bookingDate">Booking Date</label>
+                <input type="date" id="bookingDate" required>
               </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group flex-1">
-                <label for="startTime">Start Time</label>
-                <input type="time" id="startTime" required value="09:00">
+            <!-- Time slot chips -->
+            <div class="field-group">
+              <label>Time Window</label>
+              <div class="time-chip-grid" id="timeChipGrid">
+                <div class="chip-loading">Select a date and resource to see availability</div>
               </div>
-              <div class="form-group flex-1">
-                <label for="endTime">End Time</label>
-                <input type="time" id="endTime" required value="11:00">
+              <input type="hidden" id="startTime">
+              <input type="hidden" id="endTime">
+              <div class="selected-slot-display hidden" id="selectedSlotDisplay">
+                <i class="fa-regular fa-clock"></i> <span id="selectedSlotText"></span>
+                <button type="button" id="clearSlotBtn" class="clear-slot-btn">×</button>
               </div>
             </div>
 
-            <div class="form-group">
-              <label for="bookingPurpose"><i class="fa-solid fa-graduation-cap"></i> Academic / Operational Purpose</label>
-              <textarea id="bookingPurpose" rows="3" placeholder="e.g., Capstone project testing on VR sensor tracking / CSE Lab Exam" required></textarea>
+            <div class="field-group">
+              <label for="purposeInput">Academic Purpose / Description</label>
+              <textarea id="purposeInput" rows="3" placeholder="Briefly describe your session objective…" required></textarea>
             </div>
 
-            <button type="submit" id="submitBookingBtn" class="btn btn-primary full-width">
-              <i class="fa-solid fa-check"></i> Submit Reservation
+            <button type="submit" class="btn-glow" id="submitReservationBtn">
+              <i class="fa-solid fa-check-circle"></i>
+              Confirm Reservation
             </button>
           </form>
         </div>
 
-        <!-- Dynamic Live Availability Viewer -->
-        <div class="card availability-card">
+        <!-- Schedule at a Glance -->
+        <div class="glass-card schedule-card">
           <div class="card-header">
-            <h3><i class="fa-solid fa-chart-gantt"></i> Real-time Slot Availability</h3>
-            <span id="availStatusPill" class="status-badge badge-neutral">Select Resource</span>
+            <h3><i class="fa-regular fa-clock" style="color:#8b5cf6"></i> Schedule at a Glance</h3>
+            <button id="refreshScheduleBtn" class="btn-icon" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
           </div>
-
-          <div id="availabilityDetails" class="avail-content">
-            <div class="resource-summary-box" id="resSummaryBox">
-              <h4 id="availResName">—</h4>
-              <p id="availResMeta"><i class="fa-solid fa-location-dot"></i> Select resource above to inspect schedule</p>
-            </div>
-
-            <div class="slot-visualizer">
-              <h5>Booked Blocks for Selected Date:</h5>
-              <div id="bookedSlotsTimeline" class="timeline-slots">
-                <p class="empty-state-text">No date or resource selected.</p>
-              </div>
-            </div>
-
-            <div class="conflict-alert hidden" id="slotConflictAlert">
-              <i class="fa-solid fa-triangle-exclamation"></i>
-              <span>Selected time window overlaps with an existing reservation! Submitting will result in a 409 conflict.</span>
-            </div>
+          <div id="scheduleTimeline" class="schedule-timeline">
+            <div class="empty-state-msg">Log in to see your upcoming bookings.</div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- TAB 2: Resource Catalog -->
-    <section id="tab-catalog" class="tab-panel">
+    <!-- ── TAB: My Bookings ────────────────────────────────────────────────── -->
+    <section id="tab-my-bookings" class="tab-panel">
       <div class="panel-header">
         <div>
-          <h2>Campus Resource Catalog</h2>
-          <p class="subtitle">State-of-the-art facilities, specialized labs, hardware kits, and lecture halls at MIT-WPU.</p>
+          <h2 class="panel-title">My Bookings</h2>
+          <p class="panel-desc">Track and manage all your active and historical reservations.</p>
         </div>
-        <div class="filter-group">
-          <button class="filter-chip active" data-cat="ALL">All Resources</button>
-          <button class="filter-chip" data-cat="Laboratory">Laboratory</button>
-          <button class="filter-chip" data-cat="Seminar Hall">Seminar Hall</button>
-          <button class="filter-chip" data-cat="Specialized Hardware">Hardware</button>
-        </div>
+        <button id="refreshBookingsBtn" class="btn-secondary"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
       </div>
-      <div id="catalogGrid" class="catalog-grid">
-        <!-- Injected via app.js -->
-      </div>
-    </section>
-
-    <!-- TAB 3: My Reservations -->
-    <section id="tab-my-reservations" class="tab-panel">
-      <div class="panel-header">
-        <div>
-          <h2>My Active & Historical Reservations</h2>
-          <p class="subtitle">Track approval states, initiate digital check-in/out, or cancel bookings.</p>
-        </div>
-        <button id="refreshMyBookingsBtn" class="btn btn-secondary btn-sm">
-          <i class="fa-solid fa-rotate"></i> Refresh
-        </button>
-      </div>
-
-      <div class="card table-card">
-        <div class="table-responsive">
+      <div class="glass-card">
+        <div class="table-scroll">
           <table class="data-table">
-            <thead>
-              <tr>
-                <th>Booking Code</th>
-                <th>Resource & Details</th>
-                <th>Date & Window</th>
-                <th>Purpose</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
+            <thead><tr>
+              <th>Booking ID</th><th>Resource</th><th>Date &amp; Window</th><th>Purpose</th><th>Status</th><th style="text-align:right">Actions</th>
+            </tr></thead>
             <tbody id="myReservationsTableBody">
-              <tr>
-                <td colspan="6" class="text-center">Loading bookings...</td>
-              </tr>
+              <tr><td colspan="6" class="tc">Loading reservations…</td></tr>
             </tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- TAB 4: Admin & Faculty Approvals -->
+    <!-- ── TAB: Calendar View ──────────────────────────────────────────────── -->
+    <section id="tab-calendar" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Calendar View</h2>
+          <p class="panel-desc">Visualize all bookings across campus resources for any month.</p>
+        </div>
+        <div class="cal-nav-bar">
+          <button id="calPrevBtn" class="btn-secondary btn-icon"><i class="fa-solid fa-chevron-left"></i></button>
+          <span id="calMonthLabel" class="cal-month-label">Loading…</span>
+          <button id="calNextBtn" class="btn-secondary btn-icon"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+      </div>
+      <div id="calFilterBar" class="cal-filter-bar">
+        <span class="filter-label"><i class="fa-solid fa-filter"></i></span>
+        <button class="cal-chip active" data-filter="ALL">All</button>
+        <button class="cal-chip" data-filter="Laboratory">Labs</button>
+        <button class="cal-chip" data-filter="Seminar Hall">Seminar</button>
+        <button class="cal-chip" data-filter="Specialized Hardware">Hardware</button>
+        <button class="cal-chip" data-filter="Classroom">Classrooms</button>
+      </div>
+      <div class="glass-card" style="padding:0;overflow:hidden">
+        <div class="cal-grid-header">
+          <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+        </div>
+        <div id="calendarGrid" class="cal-grid">
+          <div class="cal-loading">Loading calendar…</div>
+        </div>
+      </div>
+      <div id="calEventFlyout" class="cal-event-flyout hidden">
+        <div class="flyout-head">
+          <span id="flyoutDateLabel" class="flyout-date"></span>
+          <button id="closeFlyoutBtn" class="btn-icon">×</button>
+        </div>
+        <div id="flyoutEventList" class="flyout-event-list"></div>
+      </div>
+    </section>
+
+    <!-- ── TAB: Approval Desk ──────────────────────────────────────────────── -->
     <section id="tab-approvals" class="tab-panel">
       <div class="panel-header">
         <div>
-          <h2>Approvals & Review Desk</h2>
-          <p class="subtitle">Review pending student and faculty requests requiring institutional clearance.</p>
+          <h2 class="panel-title">Institutional Clearance &amp; Approval Desk</h2>
+          <p class="panel-desc">Review and clear pending reservation requests submitted by students and faculty.</p>
         </div>
-        <button id="refreshApprovalsBtn" class="btn btn-secondary btn-sm">
-          <i class="fa-solid fa-rotate"></i> Refresh
-        </button>
+        <button id="refreshApprovalsBtn" class="btn-secondary"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
       </div>
-
-      <div class="card table-card">
-        <div class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Booking Code</th>
-                <th>Requested By</th>
-                <th>Resource</th>
-                <th>Date & Time</th>
-                <th>Purpose</th>
-                <th>Review Action</th>
-              </tr>
-            </thead>
-            <tbody id="approvalsTableBody">
-              <tr>
-                <td colspan="6" class="text-center">No pending approvals found.</td>
-              </tr>
-            </tbody>
-          </table>
+      <div id="approvals-list" class="approvals-grid">
+        <div class="empty-approval-state glass-card" style="grid-column:1/-1;text-align:center;padding:48px 24px">
+          <div style="font-size:2.5rem;color:#34d399;margin-bottom:12px"><i class="fa-solid fa-clipboard-check"></i></div>
+          <h3 style="font-size:1.1rem;font-weight:600;color:var(--text-1);margin-bottom:6px">No pending reservations awaiting clearance.</h3>
+          <p style="font-size:0.85rem;color:var(--text-3)">All submitted facility requests have been processed.</p>
         </div>
       </div>
     </section>
 
-    <!-- TAB 5: Email & Audit Ledger -->
-    <section id="tab-audit" class="tab-panel">
+    <!-- ── TAB: Admin Dashboard ─────────────────────────────────────────────── -->
+    <section id="tab-admin" class="tab-panel">
       <div class="panel-header">
         <div>
-          <h2>Email & Notification Audit Ledger</h2>
-          <p class="subtitle">Verify dual-channel notifications, Ethereal test inbox inspection URLs, and delivery telemetry.</p>
+          <h2 class="panel-title">System Administration &amp; Analytics</h2>
+          <p class="panel-desc">Institutional overview — utilization, pending queue, and user telemetry.</p>
         </div>
-        <button id="refreshAuditBtn" class="btn btn-secondary btn-sm">
-          <i class="fa-solid fa-rotate"></i> Refresh Ledger
-        </button>
+        <button id="refreshAdminBtn" class="btn-secondary"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
       </div>
+      <div class="admin-kpi-grid" id="adminKpiGrid">
+        <div class="kpi-card kpi-blue">  <i class="fa-solid fa-users kpi-icon"></i><div class="kpi-value" id="kpiUsers">—</div><div class="kpi-label">Registered Users</div></div>
+        <div class="kpi-card kpi-violet"><i class="fa-solid fa-building kpi-icon"></i><div class="kpi-value" id="kpiResources">—</div><div class="kpi-label">Active Resources</div></div>
+        <div class="kpi-card kpi-green"> <i class="fa-solid fa-calendar-check kpi-icon"></i><div class="kpi-value" id="kpiTotal">—</div><div class="kpi-label">Total Reservations</div></div>
+        <div class="kpi-card kpi-amber"> <i class="fa-solid fa-hourglass-half kpi-icon"></i><div class="kpi-value" id="kpiPending">—</div><div class="kpi-label">Pending Approvals</div></div>
+        <div class="kpi-card kpi-teal">  <i class="fa-solid fa-bolt kpi-icon"></i><div class="kpi-value" id="kpiToday">—</div><div class="kpi-label">Approved Today</div></div>
+        <div class="kpi-card kpi-red">   <i class="fa-solid fa-xmark kpi-icon"></i><div class="kpi-value" id="kpiRejected">—</div><div class="kpi-label">Rejected</div></div>
+      </div>
+      <div class="admin-split">
+        <div class="glass-card">
+          <div class="card-header"><h3><i class="fa-solid fa-database" style="color:#8b5cf6"></i> Resource Utilization</h3></div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>Resource</th><th>Category</th><th style="text-align:center">Total</th><th style="text-align:center">Approved</th><th style="text-align:center">Pending</th><th>Utilization</th></tr></thead>
+              <tbody id="adminUtilizationBody"><tr><td colspan="6" class="tc">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="glass-card">
+          <div class="card-header"><h3><i class="fa-solid fa-id-badge" style="color:#8b5cf6"></i> User Role Distribution</h3></div>
+          <div id="adminRoleChart" class="role-chart-area"></div>
+          <div class="card-header" style="margin-top:20px"><h3><i class="fa-solid fa-clock-rotate-left" style="color:#8b5cf6"></i> Recent Activity</h3></div>
+          <div id="adminActivityFeed" class="activity-feed"><div class="tc">Loading…</div></div>
+        </div>
+      </div>
+    </section>
 
-      <div class="card table-card">
-        <div class="table-responsive">
+    <!-- ── TAB: Mail Telemetry ──────────────────────────────────────────────── -->
+    <section id="tab-email-ledger" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Live Email Dispatch &amp; Telemetry</h2>
+          <p class="panel-desc">Real-time record of all notifications dispatched via Gmail SMTP / Ethereal.</p>
+        </div>
+        <button id="refreshAuditBtn" class="btn-secondary"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
+      </div>
+      <div class="glass-card">
+        <div class="table-scroll">
           <table class="data-table">
-            <thead>
-              <tr>
-                <th>Time (UTC/Local)</th>
-                <th>Recipient</th>
-                <th>Event Type</th>
-                <th>Subject</th>
-                <th>Status</th>
-                <th>Email Inspection</th>
-              </tr>
-            </thead>
+            <thead><tr>
+              <th>Timestamp</th><th>Recipient</th><th>Event Type</th><th>Subject</th><th>Status</th><th style="text-align:right">Preview</th>
+            </tr></thead>
             <tbody id="auditTableBody">
-              <tr>
-                <td colspan="6" class="text-center">Loading email telemetry...</td>
-              </tr>
+              <tr><td colspan="6" class="tc">Loading telemetry…</td></tr>
             </tbody>
           </table>
         </div>
       </div>
     </section>
-  </main>
 
-  <!-- Rejection Modal -->
+  </main><!-- /workspace -->
+
+  <!-- ═══ AUTH MODAL ══════════════════════════════════════════════════════════ -->
+  <div id="authModal" class="modal-backdrop hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div>
+          <h3 id="authModalTitle">Account Authentication</h3>
+          <p class="modal-sub">Sign in with institutional credentials or create a new profile.</p>
+        </div>
+        <button class="btn-icon" id="closeAuthModalBtn">×</button>
+      </div>
+
+      <!-- Quick demo seeds -->
+      <div class="demo-seeds">
+        <span class="seed-label">Quick Demo Access:</span>
+        <div class="seed-btns">
+          <button type="button" class="seed-btn" onclick="quickFillDemo('student')"><span class="seed-role">Student</span> Saksham</button>
+          <button type="button" class="seed-btn" onclick="quickFillDemo('faculty')"><span class="seed-role">Faculty</span> Prof. Yogini</button>
+          <button type="button" class="seed-btn" onclick="quickFillDemo('admin')"><span class="seed-role">Admin</span> Facility Mgr</button>
+        </div>
+      </div>
+
+      <!-- Auth tabs -->
+      <div class="auth-mode-tabs">
+        <button type="button" class="auth-mode-btn active" id="tabLoginBtn">Sign In</button>
+        <button type="button" class="auth-mode-btn" id="tabRegisterBtn">Register New Account</button>
+      </div>
+
+      <!-- Login form -->
+      <form id="loginForm" class="auth-form">
+        <div class="field-group">
+          <label for="loginEmail">Email Address</label>
+          <input type="email" id="loginEmail" placeholder="your.name@mitwpu.edu.in" required>
+        </div>
+        <div class="field-group">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn-glow" id="loginSubmitBtn">Sign In to Portal</button>
+      </form>
+
+      <!-- Register form -->
+      <form id="registerForm" class="auth-form hidden">
+        <div class="field-group">
+          <label for="regFullName">Full Name</label>
+          <input type="text" id="regFullName" placeholder="e.g. Saksham Sisodiya" required>
+        </div>
+        <div class="field-group">
+          <label for="regEmail">Email Address <span style="color:#8b5cf6;font-size:.75rem">(welcome email dispatched here)</span></label>
+          <input type="email" id="regEmail" placeholder="user@gmail.com or user@mitwpu.edu.in" required>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label for="regRole">Role</label>
+            <select id="regRole" required>
+              <option value="STUDENT">Student</option>
+              <option value="FACULTY">Faculty Member</option>
+              <option value="ADMIN">Facility Administrator</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="regDept">Department</label>
+            <input type="text" id="regDept" placeholder="e.g. CSE" required value="Computer Science">
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="regPassword">Password</label>
+          <input type="password" id="regPassword" placeholder="Minimum 6 characters" required>
+        </div>
+        <button type="submit" class="btn-glow" id="registerSubmitBtn">Create Account &amp; Send Welcome Email</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══ REJECTION MODAL ═════════════════════════════════════════════════════ -->
   <div id="rejectModal" class="modal-backdrop hidden">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3><i class="fa-solid fa-ban text-danger"></i> Reject Reservation Request</h3>
-        <button class="modal-close-btn" id="closeRejectModalBtn">&times;</button>
+    <div class="modal-box">
+      <div class="modal-head">
+        <div>
+          <h3>Decline Justification</h3>
+          <p class="modal-sub">Specify reason for rejecting booking <strong id="rejectBookingCode"></strong></p>
+        </div>
+        <button class="btn-icon" id="closeRejectModalBtn">×</button>
       </div>
-      <div class="modal-body">
-        <p>Please enter the institutional reason for denying booking <strong id="rejectBookingCode"></strong>:</p>
-        <textarea id="rejectionReasonInput" rows="4" placeholder="e.g., Conflict with scheduled annual lab calibration or insufficient supervisor endorsement." required></textarea>
+      <div style="padding:0 24px 24px">
+        <textarea id="rejectionReasonInput" rows="4" placeholder="e.g., Scheduled maintenance or conflict with faculty lab course…" required style="width:100%;box-sizing:border-box"></textarea>
       </div>
-      <div class="modal-footer">
-        <button id="cancelRejectBtn" class="btn btn-secondary">Cancel</button>
-        <button id="confirmRejectBtn" class="btn btn-danger">Confirm Rejection</button>
+      <div class="modal-foot">
+        <button id="cancelRejectBtn" class="btn-secondary">Cancel</button>
+        <button id="confirmRejectBtn" class="btn-danger">Confirm Rejection</button>
       </div>
     </div>
   </div>
 
-  <!-- Email Simulated Preview Modal -->
-  <div id="emailPreviewModal" class="modal-backdrop hidden">
-    <div class="modal-card modal-lg">
-      <div class="modal-header">
-        <h3><i class="fa-solid fa-envelope text-accent"></i> Simulated Email Dispatch Preview</h3>
-        <button class="modal-close-btn" id="closeEmailPreviewModalBtn">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="preview-meta-row">
-          <div><strong>Recipient:</strong> <span id="previewRecipient"></span></div>
-          <div><strong>Event:</strong> <span id="previewEvent"></span></div>
-        </div>
-        <div class="preview-meta-row">
-          <div><strong>Subject:</strong> <span id="previewSubject"></span></div>
-          <div><strong>Status:</strong> <span class="status-badge badge-simulated">SIMULATED</span></div>
-        </div>
-        <div class="simulated-email-body" id="previewHtmlContainer">
-          <!-- Rendered simulated content -->
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button id="closePreviewBtn" class="btn btn-secondary">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Toast Container -->
-  <div id="toastContainer" class="toast-container"></div>
+  <!-- Toast container -->
+  <div id="toastContainer" class="toast-stack"></div>
 
   <script src="app.js"></script>
 </body>
