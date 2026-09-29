@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CampusReserve | MIT-WPU Facility & Equipment Portal</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <header class="navbar">
+    <div class="nav-left">
+      <div class="logo">
+        <i class="fa-solid fa-graduation-cap"></i>
+        <span>Campus<span class="accent-text">Reserve</span></span>
+      </div>
+      <span class="sub-badge">MIT-WPU Smart Campus</span>
+    </div>
+
+    <div class="nav-right">
+      <!-- One-Click Role Simulator -->
+      <div class="role-selector-container">
+        <label for="roleSwitcher"><i class="fa-solid fa-user-gear"></i> Role Sim:</label>
+        <select id="roleSwitcher" class="role-select">
+          <option value="student">Student: Saksham Sisodiya</option>
+          <option value="faculty">Faculty: Prof. Yogini Mukherjee</option>
+          <option value="admin">Admin: Facility Manager</option>
+        </select>
+      </div>
+
+      <!-- Current User Badge -->
+      <div class="user-badge" id="currentUserBadge">
+        <div class="avatar" id="userAvatar">S</div>
+        <div class="user-meta">
+          <span class="user-name" id="userName">Saksham Sisodiya</span>
+          <span class="user-role-tag" id="userRoleTag">STUDENT</span>
+        </div>
+      </div>
+
+      <!-- Notification Bell -->
+      <div class="notification-bell-wrapper">
+        <button id="notifBellBtn" class="icon-btn" aria-label="Notifications" title="Notifications">
+          <i class="fa-solid fa-bell"></i>
+          <span id="notifBadge" class="badge">0</span>
+        </button>
+
+        <!-- Notification Dropdown Panel -->
+        <div id="notifDropdown" class="notif-dropdown hidden">
+          <div class="notif-header">
+            <h4><i class="fa-solid fa-bell"></i> In-App Alerts</h4>
+            <button id="markAllReadBtn" class="btn-link">Mark all read</button>
+          </div>
+          <div id="notifList" class="notif-list">
+            <div class="empty-state">No notifications yet.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Navigation Tabs -->
+  <nav class="tab-nav">
+    <div class="tab-container">
+      <button class="tab-btn active" data-tab="tab-reserve">
+        <i class="fa-solid fa-calendar-plus"></i> Reserve Resource
+      </button>
+      <button class="tab-btn" data-tab="tab-catalog">
+        <i class="fa-solid fa-boxes-stacked"></i> Resource Catalog
+      </button>
+      <button class="tab-btn" data-tab="tab-my-reservations">
+        <i class="fa-solid fa-calendar-check"></i> My Reservations
+      </button>
+      <button class="tab-btn restricted-tab hidden" data-tab="tab-approvals" id="approvalsTabBtn">
+        <i class="fa-solid fa-clipboard-check"></i> Approvals Desk <span id="pendingApprovalsCount" class="tab-counter">0</span>
+      </button>
+      <button class="tab-btn restricted-admin hidden" data-tab="tab-audit" id="auditTabBtn">
+        <i class="fa-solid fa-envelope-open-text"></i> Email & Audit Ledger
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content Layout -->
+  <main class="main-content">
+    
+    <!-- TAB 1: Reserve Resource -->
+    <section id="tab-reserve" class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>Book University Facilities & Hardware</h2>
+          <p class="subtitle">Select your resource, verify real-time timetable availability, and reserve effortlessly.</p>
+        </div>
+      </div>
+
+      <div class="grid-2-col">
+        <!-- Reservation Form -->
+        <div class="card form-card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-pen-to-square"></i> New Reservation</h3>
+            <span class="pill-info" id="formPolicyHint">Instant Booking</span>
+          </div>
+          <form id="reservationForm">
+            <div class="form-group">
+              <label for="resourceSelect"><i class="fa-solid fa-cube"></i> Select Resource</label>
+              <select id="resourceSelect" required>
+                <option value="" disabled selected>Loading campus inventory...</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="bookingDate"><i class="fa-solid fa-calendar-day"></i> Booking Date</label>
+              <input type="date" id="bookingDate" required>
+            </div>
+
+            <!-- Slot Presets -->
+            <div class="form-group">
+              <label><i class="fa-solid fa-clock"></i> Quick Slot Presets</label>
+              <div class="slot-presets">
+                <button type="button" class="preset-btn" data-start="09:00" data-end="11:00">09:00 - 11:00</button>
+                <button type="button" class="preset-btn" data-start="11:00" data-end="13:00">11:00 - 13:00</button>
+                <button type="button" class="preset-btn" data-start="14:00" data-end="16:00">14:00 - 16:00</button>
+                <button type="button" class="preset-btn" data-start="16:00" data-end="18:00">16:00 - 18:00</button>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="startTime">Start Time</label>
+                <input type="time" id="startTime" required value="09:00">
+              </div>
+              <div class="form-group flex-1">
+                <label for="endTime">End Time</label>
+                <input type="time" id="endTime" required value="11:00">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="bookingPurpose"><i class="fa-solid fa-graduation-cap"></i> Academic / Operational Purpose</label>
+              <textarea id="bookingPurpose" rows="3" placeholder="e.g., Capstone project testing on VR sensor tracking / CSE Lab Exam" required></textarea>
+            </div>
+
+            <button type="submit" id="submitBookingBtn" class="btn btn-primary full-width">
+              <i class="fa-solid fa-check"></i> Submit Reservation
+            </button>
+          </form>
+        </div>
+
+        <!-- Dynamic Live Availability Viewer -->
+        <div class="card availability-card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-chart-gantt"></i> Real-time Slot Availability</h3>
+            <span id="availStatusPill" class="status-badge badge-neutral">Select Resource</span>
+          </div>
+
+          <div id="availabilityDetails" class="avail-content">
+            <div class="resource-summary-box" id="resSummaryBox">
+              <h4 id="availResName">—</h4>
+              <p id="availResMeta"><i class="fa-solid fa-location-dot"></i> Select resource above to inspect schedule</p>
+            </div>
+
+            <div class="slot-visualizer">
+              <h5>Booked Blocks for Selected Date:</h5>
+              <div id="bookedSlotsTimeline" class="timeline-slots">
+                <p class="empty-state-text">No date or resource selected.</p>
+              </div>
+            </div>
+
+            <div class="conflict-alert hidden" id="slotConflictAlert">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <span>Selected time window overlaps with an existing reservation! Submitting will result in a 409 conflict.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: Resource Catalog -->
+    <section id="tab-catalog" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h2>Campus Resource Catalog</h2>
+          <p class="subtitle">State-of-the-art facilities, specialized labs, hardware kits, and lecture halls at MIT-WPU.</p>
+        </div>
+        <div class="filter-group">
+          <button class="filter-chip active" data-cat="ALL">All Resources</button>
+          <button class="filter-chip" data-cat="Laboratory">Laboratory</button>
+          <button class="filter-chip" data-cat="Seminar Hall">Seminar Hall</button>
+          <button class="filter-chip" data-cat="Specialized Hardware">Hardware</button>
+        </div>
+      </div>
+      <div id="catalogGrid" class="catalog-grid">
+        <!-- Injected via app.js -->
+      </div>
+    </section>
+
+    <!-- TAB 3: My Reservations -->
+    <section id="tab-my-reservations" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h2>My Active & Historical Reservations</h2>
+          <p class="subtitle">Track approval states, initiate digital check-in/out, or cancel bookings.</p>
+        </div>
+        <button id="refreshMyBookingsBtn" class="btn btn-secondary btn-sm">
+          <i class="fa-solid fa-rotate"></i> Refresh
+        </button>
+      </div>
+
+      <div class="card table-card">
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Booking Code</th>
+                <th>Resource & Details</th>
+                <th>Date & Window</th>
+                <th>Purpose</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="myReservationsTableBody">
+              <tr>
+                <td colspan="6" class="text-center">Loading bookings...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: Admin & Faculty Approvals -->
+    <section id="tab-approvals" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h2>Approvals & Review Desk</h2>
+          <p class="subtitle">Review pending student and faculty requests requiring institutional clearance.</p>
+        </div>
+        <button id="refreshApprovalsBtn" class="btn btn-secondary btn-sm">
+          <i class="fa-solid fa-rotate"></i> Refresh
+        </button>
+      </div>
+
+      <div class="card table-card">
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Booking Code</th>
+                <th>Requested By</th>
+                <th>Resource</th>
+                <th>Date & Time</th>
+                <th>Purpose</th>
+                <th>Review Action</th>
+              </tr>
+            </thead>
+            <tbody id="approvalsTableBody">
+              <tr>
+                <td colspan="6" class="text-center">No pending approvals found.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: Email & Audit Ledger -->
+    <section id="tab-audit" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h2>Email & Notification Audit Ledger</h2>
+          <p class="subtitle">Verify dual-channel notifications, Ethereal test inbox inspection URLs, and delivery telemetry.</p>
+        </div>
+        <button id="refreshAuditBtn" class="btn btn-secondary btn-sm">
+          <i class="fa-solid fa-rotate"></i> Refresh Ledger
+        </button>
+      </div>
+
+      <div class="card table-card">
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Time (UTC/Local)</th>
+                <th>Recipient</th>
+                <th>Event Type</th>
+                <th>Subject</th>
+                <th>Status</th>
+                <th>Email Inspection</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody">
+              <tr>
+                <td colspan="6" class="text-center">Loading email telemetry...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Rejection Modal -->
+  <div id="rejectModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-ban text-danger"></i> Reject Reservation Request</h3>
+        <button class="modal-close-btn" id="closeRejectModalBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Please enter the institutional reason for denying booking <strong id="rejectBookingCode"></strong>:</p>
+        <textarea id="rejectionReasonInput" rows="4" placeholder="e.g., Conflict with scheduled annual lab calibration or insufficient supervisor endorsement." required></textarea>
+      </div>
+      <div class="modal-footer">
+        <button id="cancelRejectBtn" class="btn btn-secondary">Cancel</button>
+        <button id="confirmRejectBtn" class="btn btn-danger">Confirm Rejection</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email Simulated Preview Modal -->
+  <div id="emailPreviewModal" class="modal-backdrop hidden">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-envelope text-accent"></i> Simulated Email Dispatch Preview</h3>
+        <button class="modal-close-btn" id="closeEmailPreviewModalBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="preview-meta-row">
+          <div><strong>Recipient:</strong> <span id="previewRecipient"></span></div>
+          <div><strong>Event:</strong> <span id="previewEvent"></span></div>
+        </div>
+        <div class="preview-meta-row">
+          <div><strong>Subject:</strong> <span id="previewSubject"></span></div>
+          <div><strong>Status:</strong> <span class="status-badge badge-simulated">SIMULATED</span></div>
+        </div>
+        <div class="simulated-email-body" id="previewHtmlContainer">
+          <!-- Rendered simulated content -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="closePreviewBtn" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
