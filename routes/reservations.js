@@ -63,8 +63,8 @@ router.post("/", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: `"${resource.name}" is currently under maintenance and cannot be booked.` });
     }
 
-    // ── Collision Check (serialized) ───────────────────────────────────────
-    const conflict = await dbGet(
+    // ── 1. Resource Collision Check (Physical Resource Availability) ──────
+    const resourceConflict = await dbGet(
       `SELECT id, booking_code FROM reservations
        WHERE resource_id = ?
          AND booking_date = ?
@@ -73,10 +73,27 @@ router.post("/", authenticateToken, async (req, res) => {
       [resource_id, booking_date, end_time, start_time]
     );
 
-    if (conflict) {
+    if (resourceConflict) {
       return res.status(409).json({
-        error: `Time slot conflict. "${resource.name}" is already booked (Booking: ${conflict.booking_code}) for the overlapping time window on ${booking_date}.`,
-        conflicting_booking_code: conflict.booking_code
+        error: `Time slot conflict. "${resource.name}" is already booked (Booking: ${resourceConflict.booking_code}) for the overlapping time window on ${booking_date}.`,
+        conflicting_booking_code: resourceConflict.booking_code
+      });
+    }
+
+    // ── 2. User Time-Slot Overlap Guard (Cross-Resource Collision Defense) ──
+    const userConflict = await dbGet(
+      `SELECT id, booking_code, resource_id FROM reservations
+       WHERE user_id = ?
+         AND booking_date = ?
+         AND status IN ('PENDING', 'APPROVED', 'CHECKED_IN')
+         AND (start_time < ? AND end_time > ?)`,
+      [req.user.id, booking_date, end_time, start_time]
+    );
+
+    if (userConflict) {
+      return res.status(409).json({
+        error: "Schedule conflict: You already have an active reservation for another resource during this time slot.",
+        conflicting_booking_code: userConflict.booking_code
       });
     }
 
@@ -116,116 +133,180 @@ router.post("/", authenticateToken, async (req, res) => {
       emailArgs: [bookerUser, booking, resource]
     }).catch((e) => console.error("[Reservation] Notify error:", e.message));
 
+    if (emailService.sendReservationNotification && bookerUser.email) {
+      emailService.sendReservationNotification({
+        to: bookerUser.email,
+        subject: isPending
+          ? `[Pending Approval] Booking Request ${booking_code} – ${resource.name}`
+          : `[Confirmed] Booking ${booking_code} – ${resource.name}`,
+        details: isPending
+          ? `Your booking request (${booking_code}) for ${resource.name} on ${booking_date} (${start_time}–${end_time}) requires institutional clearance.`
+          : `Your booking (${booking_code}) for ${resource.name} on ${booking_date} (${start_time}–${end_time}) has been confirmed.`,
+        status
+      }).catch((e) => console.error("[sendReservationNotification error]:", e.message));
+    }
+
     return res.status(201).json({
       message: isPending ? "Booking submitted and pending approval." : "Booking confirmed.",
-      booking,
-      resource: { id: resource.id, name: resource.name, location: resource.location }
+      booking: {
+        ...booking,
+        resource_name: resource.name,
+        resource_category: resource.category,
+        location: resource.location
+      }
     });
   } catch (err) {
-    console.error("[POST /reservations]", err);
+    console.error("[POST /api/reservations]", err);
     res.status(500).json({ error: "Failed to create reservation." });
-  }
-});
-
-// ── GET /api/reservations/pending & /api/reservations/pending-approvals ───────
-const getPendingApprovals = async (req, res) => {
-  try {
-    const rows = await dbAll(
-      `SELECT r.*,
-              res.name AS resource_name, res.name AS name, res.category AS resource_category,
-              res.location AS resource_location, res.location AS location, res.capacity AS resource_capacity,
-              u.full_name AS full_name, u.full_name AS student_name, u.full_name AS user_name,
-              u.email AS email, u.email AS student_email, u.email AS user_email,
-              u.role AS user_role, u.department AS user_department
-       FROM reservations r
-       JOIN resources res ON r.resource_id = res.id
-       JOIN users u ON r.user_id = u.id
-       WHERE r.status = 'PENDING'
-       ORDER BY r.created_at ASC`,
-      []
-    );
-    res.json({ success: true, reservations: rows, bookings: rows, count: rows.length });
-  } catch (err) {
-    console.error("[GET /reservations/pending]", err);
-    res.status(500).json({ success: false, error: "Failed to fetch pending reservations." });
-  }
-};
-
-router.get("/pending", authenticateToken, requireRole(["FACULTY", "ADMIN"]), getPendingApprovals);
-router.get("/pending-approvals", authenticateToken, requireRole(["FACULTY", "ADMIN"]), getPendingApprovals);
-
-// ── GET /api/reservations/my ──────────────────────────────────────────────────
-router.get("/my", authenticateToken, async (req, res) => {
-  try {
-    const rows = await dbAll(
-      `SELECT r.*, res.name AS resource_name, res.category AS resource_category, res.location, res.capacity
-       FROM reservations r
-       JOIN resources res ON r.resource_id = res.id
-       WHERE r.user_id = ?
-       ORDER BY r.created_at DESC`,
-      [req.user.id]
-    );
-    res.json({ success: true, reservations: rows, bookings: rows, count: rows.length });
-  } catch (err) {
-    console.error("[GET /reservations/my]", err);
-    res.status(500).json({ success: false, error: "Failed to fetch reservations." });
   }
 });
 
 // ── GET /api/reservations ─────────────────────────────────────────────────────
 router.get("/", authenticateToken, async (req, res) => {
   try {
-    let rows;
+    const { status, date, resource_id } = req.query;
+    let query = `
+      SELECT r.*, res.name as resource_name, res.category as resource_category,
+             res.location as resource_location, u.full_name as user_name, u.email as user_email
+      FROM reservations r
+      JOIN resources res ON r.resource_id = res.id
+      JOIN users u ON r.user_id = u.id
+      WHERE 1=1
+    `;
+    const params = [];
+
     if (req.user.role === "STUDENT") {
-      rows = await dbAll(
-        `SELECT r.*, res.name AS resource_name, res.category, res.location, res.capacity
-         FROM reservations r
-         JOIN resources res ON r.resource_id = res.id
-         WHERE r.user_id = ?
-         ORDER BY r.created_at DESC`,
-        [req.user.id]
-      );
-    } else {
-      rows = await dbAll(
-        `SELECT r.*,
-                res.name AS resource_name, res.category, res.location, res.capacity,
-                u.full_name AS booker_name, u.email AS booker_email, u.role AS booker_role, u.department AS booker_department
-         FROM reservations r
-         JOIN resources res ON r.resource_id = res.id
-         JOIN users u ON r.user_id = u.id
-         ORDER BY r.created_at DESC`,
-        []
-      );
+      query += " AND r.user_id = ?";
+      params.push(req.user.id);
     }
-    res.json({ success: true, reservations: rows, bookings: rows, count: rows.length });
+    if (status) {
+      query += " AND r.status = ?";
+      params.push(status);
+    }
+    if (date) {
+      query += " AND r.booking_date = ?";
+      params.push(date);
+    }
+    if (resource_id) {
+      query += " AND r.resource_id = ?";
+      params.push(resource_id);
+    }
+
+    query += " ORDER BY r.booking_date DESC, r.start_time DESC LIMIT 100";
+
+    const reservations = await dbAll(query, params);
+    res.json({ reservations, count: reservations.length });
   } catch (err) {
-    console.error("[GET /reservations]", err);
+    console.error("[GET /api/reservations]", err);
     res.status(500).json({ error: "Failed to fetch reservations." });
   }
 });
 
-// ── PATCH/PUT /api/reservations/:id/status ────────────────────────────────────
+// ── GET /api/reservations/pending ─────────────────────────────────────────────
+router.get("/pending", authenticateToken, requireRole(["FACULTY", "ADMIN"]), async (req, res) => {
+  try {
+    const query = `
+      SELECT r.*, res.name as resource_name, res.category as resource_category,
+             res.location as resource_location, u.full_name as student_name, u.email as student_email,
+             u.department as student_dept
+      FROM reservations r
+      JOIN resources res ON r.resource_id = res.id
+      JOIN users u ON r.user_id = u.id
+      WHERE r.status = 'PENDING'
+      ORDER BY r.created_at ASC
+    `;
+    const pending = await dbAll(query, []);
+    res.json({ reservations: pending, bookings: pending, count: pending.length });
+  } catch (err) {
+    console.error("[GET /api/reservations/pending]", err);
+    res.status(500).json({ error: "Failed to fetch pending approvals." });
+  }
+});
+
+// ── GET /api/reservations/my ──────────────────────────────────────────────────
+router.get("/my", authenticateToken, async (req, res) => {
+  try {
+    const query = `
+      SELECT r.*, res.name as resource_name, res.category as resource_category,
+             res.location as resource_location
+      FROM reservations r
+      JOIN resources res ON r.resource_id = res.id
+      WHERE r.user_id = ?
+      ORDER BY r.booking_date DESC, r.start_time DESC
+    `;
+    const bookings = await dbAll(query, [req.user.id]);
+    res.json({ reservations: bookings, bookings, count: bookings.length });
+  } catch (err) {
+    console.error("[GET /api/reservations/my]", err);
+    res.status(500).json({ error: "Failed to fetch your bookings." });
+  }
+});
+
+// ── GET /api/reservations/:id ─────────────────────────────────────────────────
+router.get("/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const query = `
+      SELECT r.*, res.name as resource_name, res.category as resource_category,
+             res.location as resource_location, u.full_name as user_name, u.email as user_email
+      FROM reservations r
+      JOIN resources res ON r.resource_id = res.id
+      JOIN users u ON r.user_id = u.id
+      WHERE r.id = ?
+    `;
+    const booking = await dbGet(query, [id]);
+    if (!booking) return res.status(404).json({ error: "Booking not found." });
+
+    if (req.user.role === "STUDENT" && booking.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Access denied." });
+    }
+
+    res.json({ reservation: booking });
+  } catch (err) {
+    console.error("[GET /api/reservations/:id]", err);
+    res.status(500).json({ error: "Failed to fetch reservation." });
+  }
+});
+
+// ── Status Update Helper (Approve / Reject) ───────────────────────────────────
 const updateReservationStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, reason } = req.body;
 
-    if (!status || !["APPROVED", "REJECTED"].includes(status)) {
-      return res.status(400).json({ success: false, error: "Status must be either APPROVED or REJECTED." });
+    if (!["APPROVED", "REJECTED"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status. Must be APPROVED or REJECTED." });
     }
 
     const booking = await dbGet("SELECT * FROM reservations WHERE id = ?", [id]);
-    if (!booking) return res.status(404).json({ success: false, error: "Reservation not found." });
+    if (!booking) return res.status(404).json({ error: "Reservation not found." });
+
     if (booking.status !== "PENDING") {
-      return res.status(400).json({ success: false, error: `Cannot update reservation with status "${booking.status}". Must be PENDING.` });
+      return res.status(400).json({ error: `Reservation is already in "${booking.status}" status.` });
     }
 
+    // If approving, verify no new collision occurred in the interim
     if (status === "APPROVED") {
-      await dbRun(`UPDATE reservations SET status = 'APPROVED' WHERE id = ?`, [id]);
-    } else {
-      const rejectReason = (reason && reason.trim()) ? reason.trim() : "Institutional clearance declined.";
-      await dbRun(`UPDATE reservations SET status = 'REJECTED', rejection_reason = ? WHERE id = ?`, [rejectReason, id]);
+      const conflict = await dbGet(
+        `SELECT id, booking_code FROM reservations
+         WHERE resource_id = ?
+           AND booking_date = ?
+           AND id != ?
+           AND status IN ('APPROVED', 'CHECKED_IN')
+           AND (start_time < ? AND end_time > ?)`,
+        [booking.resource_id, booking.booking_date, id, booking.end_time, booking.start_time]
+      );
+      if (conflict) {
+        return res.status(409).json({
+          error: `Cannot approve: Resource was already booked by another confirmed reservation (${conflict.booking_code}).`
+        });
+      }
     }
+
+    await dbRun(
+      `UPDATE reservations SET status = ?, rejection_reason = ? WHERE id = ?`,
+      [status, reason || null, id]
+    );
 
     const updated = await dbGet("SELECT * FROM reservations WHERE id = ?", [id]);
     const resource = await dbGet("SELECT * FROM resources WHERE id = ?", [booking.resource_id]);
@@ -236,7 +317,7 @@ const updateReservationStatus = async (req, res) => {
       userId: booking.user_id,
       bookingId: parseInt(id),
       type: isApprove ? "BOOKING_APPROVED" : "BOOKING_REJECTED",
-      title: isApprove ? "✅ Booking Approved" : "❌ Booking Rejected",
+      title: isApprove ? "✅ Booking Approved" : "❌ Booking Declined",
       message: isApprove
         ? `Your booking (${booking.booking_code}) for "${resource ? resource.name : "Facility"}" on ${booking.booking_date} has been approved.`
         : `Your booking (${booking.booking_code}) for "${resource ? resource.name : "Facility"}" was rejected.${reason ? " Reason: " + reason : ""}`,
@@ -262,58 +343,89 @@ const updateReservationStatus = async (req, res) => {
 
 router.patch("/:id/status", authenticateToken, requireRole(["FACULTY", "ADMIN"]), updateReservationStatus);
 router.put("/:id/status", authenticateToken, requireRole(["FACULTY", "ADMIN"]), updateReservationStatus);
-
-// ── PATCH /api/reservations/:id/approve ──────────────────────────────────────
 router.patch("/:id/approve", authenticateToken, requireRole(["FACULTY", "ADMIN"]), async (req, res) => {
   req.body = { status: "APPROVED" };
   return updateReservationStatus(req, res);
 });
-
-// ── PATCH /api/reservations/:id/reject ───────────────────────────────────────
 router.patch("/:id/reject", authenticateToken, requireRole(["FACULTY", "ADMIN"]), async (req, res) => {
   req.body.status = "REJECTED";
   return updateReservationStatus(req, res);
 });
 
-// ── PATCH /api/reservations/:id/cancel ───────────────────────────────────────
-router.patch("/:id/cancel", authenticateToken, async (req, res) => {
+// ── CANCELLATION & ADMINISTRATIVE REVOCATION OVERRIDE ─────────────────────────
+// PATCH /api/reservations/:id/cancel & DELETE /api/reservations/:id/cancel
+const cancelReservationHandler = async (req, res) => {
   try {
     const { id } = req.params;
+    const { reason } = req.body || {};
     const booking = await dbGet("SELECT * FROM reservations WHERE id = ?", [id]);
     if (!booking) return res.status(404).json({ error: "Booking not found." });
 
-    if (req.user.role !== "ADMIN" && booking.user_id !== req.user.id) {
-      return res.status(403).json({ error: "You can only cancel your own bookings." });
+    const isAdmin = req.user.role === "ADMIN";
+    const isOwner = booking.user_id === req.user.id;
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ error: "Access denied. Only an Administrator or the reservation owner can cancel this booking." });
     }
 
     const cancellableStatuses = ["PENDING", "APPROVED"];
     if (!cancellableStatuses.includes(booking.status)) {
-      return res.status(400).json({ error: `Cannot cancel a booking with status "${booking.status}".` });
+      return res.status(400).json({ error: `Cannot cancel a booking with status "${booking.status}". Must be PENDING or APPROVED.` });
     }
 
-    await dbRun(`UPDATE reservations SET status = 'CANCELLED' WHERE id = ?`, [id]);
+    const cancellationReason = reason && reason.trim() 
+      ? reason.trim() 
+      : (isAdmin && !isOwner ? "Administrative revocation by campus management." : "Cancelled by user.");
+
+    await dbRun(
+      `UPDATE reservations SET status = 'CANCELLED', rejection_reason = ? WHERE id = ?`,
+      [cancellationReason, id]
+    );
+
     const updated = await dbGet("SELECT * FROM reservations WHERE id = ?", [id]);
     const resource = await dbGet("SELECT * FROM resources WHERE id = ?", [booking.resource_id]);
     const booker = await dbGet("SELECT * FROM users WHERE id = ?", [booking.user_id]);
+
+    const title = isAdmin && !isOwner ? "⚠️ Booking Revoked by Admin" : "🚫 Booking Cancelled";
+    const message = isAdmin && !isOwner
+      ? `Your booking (${booking.booking_code}) for "${resource.name}" on ${booking.booking_date} was revoked by administration. Reason: ${cancellationReason}`
+      : `Booking (${booking.booking_code}) for "${resource.name}" on ${booking.booking_date} has been cancelled.`;
 
     notifyUser({
       userId: booking.user_id,
       bookingId: parseInt(id),
       type: "BOOKING_CANCELLED",
-      title: "🚫 Booking Cancelled",
-      message: `Booking (${booking.booking_code}) for "${resource.name}" on ${booking.booking_date} has been cancelled.`,
+      title,
+      message,
       emailAction: emailService.sendBookingCancelledEmail,
-      emailArgs: [booker, updated, resource]
+      emailArgs: [booker, updated, resource, cancellationReason]
     }).catch((e) => console.error("[Cancel] Notify error:", e.message));
 
-    res.json({ success: true, message: "Booking cancelled.", booking: updated });
+    if (emailService.sendReservationNotification && booker) {
+      emailService.sendReservationNotification({
+        to: booker.email,
+        subject: `[Cancelled] Booking ${booking.booking_code} – ${resource?.name || "Facility"}`,
+        details: message,
+        status: "CANCELLED"
+      }).catch((e) => console.error("[Cancel sendReservationNotification error]:", e.message));
+    }
+
+    res.json({
+      success: true,
+      message: isAdmin && !isOwner ? "Reservation administratively revoked and slot released." : "Booking cancelled.",
+      booking: updated
+    });
   } catch (err) {
-    console.error("[PATCH /cancel]", err);
+    console.error("[Cancel reservation error]", err);
     res.status(500).json({ error: "Failed to cancel booking." });
   }
-});
+};
 
-// ── PATCH /api/reservations/:id/check-in ─────────────────────────────────────
+router.patch("/:id/cancel", authenticateToken, cancelReservationHandler);
+router.delete("/:id/cancel", authenticateToken, cancelReservationHandler);
+router.delete("/:id", authenticateToken, cancelReservationHandler);
+
+// ── Check-In / Check-Out Handlers ─────────────────────────────────────────────
 router.patch("/:id/check-in", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -353,7 +465,6 @@ router.patch("/:id/check-in", authenticateToken, async (req, res) => {
   }
 });
 
-// ── PATCH /api/reservations/:id/check-out ────────────────────────────────────
 router.patch("/:id/check-out", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;

@@ -1,150 +1,232 @@
-const db = require('../database');
 const nodemailer = require('nodemailer');
+const db = require('../database');
 
-// ── Gmail SMTP Transporter (with Ethereal fallback) ───────────────────────────
-let _transporter = null;
-let _isEthereal = false;
+// ── In-Memory Ethereal Cache for fallback ─────────────────────────────────────
+let testAccountCache = null;
+let testTransporterCache = null;
 
-async function getTransporter() {
-  if (_transporter) return _transporter;
-
-  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-    const cleanPass = process.env.SMTP_PASS.replace(/\s+/g, '');
-    _transporter = nodemailer.createTransport({
-      host:   process.env.SMTP_HOST || 'smtp.gmail.com',
-      port:   Number(process.env.SMTP_PORT) || 465,
-      secure: Number(process.env.SMTP_PORT || 465) === 465,
-      auth:   { user: process.env.SMTP_USER, pass: cleanPass }
-    });
-    _isEthereal = false;
-    console.log('[EmailService] Gmail SMTP ready →', process.env.SMTP_USER);
-  } else {
-    console.log('[EmailService] No SMTP_USER — generating Ethereal test account...');
-    const acc = await nodemailer.createTestAccount();
-    _transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email', port: 587, secure: false,
-      auth: { user: acc.user, pass: acc.pass }
-    });
-    _isEthereal = true;
-    console.log('[EmailService] Ethereal test account:', acc.user);
-  }
-  return _transporter;
-}
-
-// ── Booking details table (shared HTML snippet) ───────────────────────────────
-function renderBookingTable(booking, resource) {
-  const row = (label, value) =>
-    `<tr>
-      <td style="padding:6px 0;font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.6px;width:130px">${label}</td>
-      <td style="padding:6px 0;font-size:13px;color:#e2e8f0">${value}</td>
-    </tr>`;
+// ── Build HTML Email Template ────────────────────────────────────────────────
+function buildEmailTemplate({ title, subtitle, badgeText, badgeColor, bodyHtml }) {
   return `
-    <table style="width:100%;border-collapse:collapse;background:rgba(255,255,255,0.03);border:1px solid #1e2338;border-radius:6px;padding:14px;margin-top:10px" cellpadding="0" cellspacing="0">
-      ${row('Booking Code', `<code style="font-family:monospace;color:#818cf8">${booking.booking_code || '—'}</code>`)}
-      ${row('Resource', resource ? resource.name : '—')}
-      ${row('Location', resource ? (resource.location || '—') : '—')}
-      ${row('Date', booking.booking_date || '—')}
-      ${row('Time Window', `${booking.start_time} – ${booking.end_time}`)}
-      ${row('Status', `<span style="color:${booking.status==='APPROVED'?'#34d399':booking.status==='PENDING'?'#fbbf24':'#f87171'}">${booking.status}</span>`)}
-      ${booking.purpose ? row('Purpose', booking.purpose) : ''}
-    </table>`;
-}
-
-// ── Email HTML template ───────────────────────────────────────────────────────
-function buildEmailTemplate({ title, subtitle, badgeText = 'NOTIFICATION', badgeColor = '#818cf8', bodyHtml }) {
-  return `<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${title}</title></head>
-<body style="margin:0;padding:0;background:#090810;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#f1f5f9">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#090810;padding:32px 16px">
-    <tr><td align="center">
-      <table width="580" cellpadding="0" cellspacing="0" style="max-width:580px;width:100%;background:rgba(18,16,28,0.95);border:1px solid rgba(139,92,246,0.25);border-radius:10px;overflow:hidden">
-        <tr><td style="height:3px;background:linear-gradient(90deg,#8b5cf6,#6366f1,#38bdf8)"></td></tr>
-        <tr><td style="padding:24px 28px 16px;border-bottom:1px solid rgba(255,255,255,0.07)">
-          <table width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td><span style="font-size:15px;font-weight:700;color:#fff">✦ CampusReserve</span>
-              <span style="display:block;font-size:10px;color:#64748b;margin-top:2px;text-transform:uppercase;letter-spacing:1px">MIT World Peace University</span></td>
-            <td align="right"><span style="padding:3px 9px;font-size:10px;font-weight:700;color:${badgeColor};border:1px solid ${badgeColor};border-radius:4px;font-family:monospace;background:rgba(139,92,246,0.08)">${badgeText}</span></td>
-          </tr></table>
-        </td></tr>
-        <tr><td style="padding:28px">
-          <h1 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#f1f5f9;letter-spacing:-.4px">${title}</h1>
-          <p style="margin:0 0 20px;font-size:13px;color:#94a3b8;line-height:1.5">${subtitle}</p>
-          ${bodyHtml}
-        </td></tr>
-        <tr><td style="padding:16px 28px;background:rgba(0,0,0,0.3);border-top:1px solid rgba(255,255,255,0.05);font-size:11px;color:#475569;line-height:1.5">
-          This is an automated dispatch from CampusReserve — MIT-WPU Academic Allocation System. Do not reply to this email.
-        </td></tr>
-      </table>
-    </td></tr>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0b0f19;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#f8fafc">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#0b0f19;min-height:100vh;padding:40px 16px">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width:560px;background:#131b2e;border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.5)">
+          <!-- Header -->
+          <tr>
+            <td style="padding:28px 32px;background:linear-gradient(135deg,rgba(59,130,246,0.12) 0%,rgba(139,92,246,0.12) 100%);border-bottom:1px solid rgba(255,255,255,0.08)">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td>
+                    <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#94a3b8;text-transform:uppercase;margin-bottom:6px">MIT World Peace University</div>
+                    <div style="font-size:20px;font-weight:700;color:#ffffff;line-height:1.2">CampusReserve</div>
+                    <div style="font-size:12px;color:#64748b;margin-top:2px">Smart Facility & Resource Allocation</div>
+                  </td>
+                  <td align="right" valign="top">
+                    <span style="display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.5px;background:${badgeColor}22;color:${badgeColor};border:1px solid ${badgeColor}44">
+                      ${badgeText}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Title bar -->
+          <tr>
+            <td style="padding:24px 32px 12px 32px">
+              <h1 style="margin:0 0 6px 0;font-size:18px;font-weight:600;color:#f8fafc">${title}</h1>
+              <p style="margin:0;font-size:13px;color:#94a3b8;line-height:1.5">${subtitle}</p>
+            </td>
+          </tr>
+
+          <!-- Main content -->
+          <tr>
+            <td style="padding:12px 32px 28px 32px">
+              ${bodyHtml}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 32px;background:#0d1424;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:#64748b;line-height:1.6">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td>
+                    This is an automated academic communication from <strong>CampusReserve</strong>.<br>
+                    Department of Campus Facilities & Operations · MIT-WPU Pune
+                  </td>
+                  <td align="right" style="font-family:monospace;color:#475569">
+                    PBL-III · 2026
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
   </table>
-</body></html>`;
+</body>
+</html>
+  `;
 }
 
-// ── Core dispatch + email_logs persistence ────────────────────────────────────
-async function dispatchEmail({ userId, recipientEmail, eventType, subject, html }) {
-  const to = recipientEmail || process.env.SMTP_USER || 'no-reply@campusreserve.in';
-  let status = 'FAILED';
-  let previewUrl = null;
-  let errorMessage = null;
+// ── Render standard booking details table ─────────────────────────────────────
+function renderBookingTable(booking, resource) {
+  const code = booking.booking_code || 'CR-2026';
+  const resourceName = resource ? resource.name : 'Allocated Facility';
+  const category = resource ? resource.category : 'General Resource';
+  const location = resource ? resource.location : 'Campus';
+  const date = booking.booking_date || new Date().toISOString().split('T')[0];
+  const time = `${booking.start_time} – ${booking.end_time}`;
+  const purpose = booking.purpose || 'Academic session';
 
-  try {
-    const transporter = await getTransporter();
-    const fromAddr = process.env.EMAIL_FROM || `"CampusReserve" <${process.env.SMTP_USER || 'noreply@campusreserve.in'}>`;
-    const info = await transporter.sendMail({ from: fromAddr, to, subject, html });
+  return `
+    <table role="presentation" width="100%" style="background:#0d1424;border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:16px;margin:16px 0;font-size:13px;color:#cbd5e1">
+      <tr>
+        <td style="padding:6px 0;color:#64748b;width:35%">Booking Reference:</td>
+        <td style="padding:6px 0;font-family:monospace;font-weight:700;color:#38bdf8">${code}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;color:#64748b">Facility / Resource:</td>
+        <td style="padding:6px 0;font-weight:600;color:#f8fafc">${resourceName} <span style="font-size:11px;color:#94a3b8">(${category})</span></td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;color:#64748b">Location:</td>
+        <td style="padding:6px 0;color:#f8fafc">${location}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;color:#64748b">Reservation Date:</td>
+        <td style="padding:6px 0;color:#f8fafc">${date}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;color:#64748b">Time Window:</td>
+        <td style="padding:6px 0;font-weight:600;color:#38bdf8">${time}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;color:#64748b">Stated Purpose:</td>
+        <td style="padding:6px 0;color:#e2e8f0;font-style:italic">"${purpose}"</td>
+      </tr>
+    </table>
+  `;
+}
 
-    if (_isEthereal) {
-      previewUrl = nodemailer.getTestMessageUrl(info) || null;
-      console.log(`\n============================================================`);
-      console.log(`[EmailService] LIVE EMAIL DISPATCHED to: ${to}`);
-      console.log(`Subject: ${subject}`);
-      if (previewUrl) console.log(`Preview URL: ${previewUrl}`);
-      console.log(`============================================================\n`);
-    } else {
-      console.log(`[EmailService] Gmail SMTP → SENT to: ${to} | Subject: ${subject}`);
+// ── Log email to DB ───────────────────────────────────────────────────────────
+function logEmail({ userId, recipientEmail, eventType, subject, status, previewUrl, errorMessage }) {
+  return new Promise((resolve) => {
+    db.run(
+      `INSERT INTO email_logs (user_id, recipient_email, event_type, subject, status, preview_url, error_message)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [userId || null, recipientEmail, eventType, subject, status, previewUrl || null, errorMessage || null],
+      function (err) {
+        if (err) console.error('[emailService] DB log failed:', err.message);
+        resolve(this ? this.lastID : null);
+      }
+    );
+  });
+}
+
+// ── Core Dispatcher ───────────────────────────────────────────────────────────
+async function dispatchEmail({ userId, recipientEmail, eventType, subject, html, text }) {
+  const actualTo = recipientEmail || process.env.SMTP_USER;
+  const isGmailConfigured = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+
+  if (isGmailConfigured) {
+    try {
+      const cleanPass = (process.env.SMTP_PASS || '').replace(/\s+/g, '');
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: Number(process.env.SMTP_PORT) || 465,
+        secure: true,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: cleanPass
+        },
+        tls: { rejectUnauthorized: false }
+      });
+
+      const info = await transporter.sendMail({
+        from: `"CampusReserve Portal" <${process.env.SMTP_USER}>`,
+        to: actualTo,
+        subject,
+        html,
+        text: text || subject
+      });
+
+      console.log(`[EmailService] Gmail SMTP → SENT to: ${actualTo} | Subject: ${subject}`);
+      await logEmail({ userId, recipientEmail: actualTo, eventType, subject, status: 'SENT' });
+      return { status: 'SENT', recipient: actualTo, messageId: info.messageId };
+    } catch (err) {
+      console.error(`[EmailService] Gmail SMTP error for ${actualTo}:`, err.message);
+      await logEmail({ userId, recipientEmail: actualTo, eventType, subject, status: 'FAILED', errorMessage: err.message });
+      // Fallback to simulated delivery below
     }
-    status = 'SENT';
-  } catch (err) {
-    errorMessage = err.message;
-    console.error(`[EmailService] FAILED to send to ${to}: ${err.message}`);
   }
 
-  // Persist to email_logs (non-blocking)
+  // Fallback: Ethereal simulated transport
   try {
-    await new Promise((resolve, reject) => {
-      db.run(
-        `INSERT INTO email_logs (user_id, recipient_email, event_type, subject, status, preview_url, error_message) VALUES (?,?,?,?,?,?,?)`,
-        [userId || null, to, eventType, subject, status, previewUrl, errorMessage],
-        (e) => (e ? reject(e) : resolve())
-      );
-    });
-  } catch (dbErr) {
-    console.error('[EmailService] DB log error:', dbErr.message);
-  }
+    if (!testAccountCache) {
+      testAccountCache = await nodemailer.createTestAccount();
+      testTransporterCache = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: { user: testAccountCache.user, pass: testAccountCache.pass }
+      });
+      console.log(`[EmailService] Ethereal fallback initialized: ${testAccountCache.user}`);
+    }
 
-  return { status, previewUrl, to };
+    const info = await testTransporterCache.sendMail({
+      from: '"CampusReserve Portal" <notifications@mitwpu.edu.in>',
+      to: actualTo,
+      subject,
+      html,
+      text: text || subject
+    });
+
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    console.log(`[EmailService] Simulated dispatch to: ${actualTo}`);
+    if (previewUrl) console.log(`[EmailService] Preview: ${previewUrl}`);
+
+    await logEmail({ userId, recipientEmail: actualTo, eventType, subject, status: 'SIMULATED', previewUrl });
+    return { status: 'SIMULATED', recipient: actualTo, previewUrl, messageId: info.messageId };
+  } catch (simErr) {
+    console.error(`[EmailService] Simulation error:`, simErr.message);
+    await logEmail({ userId, recipientEmail: actualTo, eventType, subject, status: 'FAILED', errorMessage: simErr.message });
+    return { status: 'FAILED', error: simErr.message };
+  }
 }
 
-// ── Registration welcome email ─────────────────────────────────────────────────
+// ── Registration Welcome Email ────────────────────────────────────────────────
 async function sendRegistrationEmail(user) {
-  const subject = `Welcome to CampusReserve, ${user.full_name}`;
+  const subject = `Welcome to CampusReserve, ${user.full_name.split(' ')[0]}`;
   const html = buildEmailTemplate({
-    title: 'Your account is ready',
-    subtitle: 'You have been granted access to the MIT-WPU Academic Allocation System.',
-    badgeText: 'ACCOUNT ACTIVE',
-    badgeColor: '#34d399',
+    title: 'Account Successfully Registered',
+    subtitle: 'Your institutional portal access credentials have been provisioned.',
+    badgeText: user.role || 'STUDENT',
+    badgeColor: user.role === 'ADMIN' ? '#fbbf24' : user.role === 'FACULTY' ? '#60a5fa' : '#34d399',
     bodyHtml: `
-      <p style="font-size:13px;color:#cbd5e1;margin-bottom:12px">Hello <strong>${user.full_name}</strong>, your CampusReserve account has been provisioned with the following credentials:</p>
-      <table style="width:100%;border-collapse:collapse" cellpadding="0" cellspacing="0">
-        <tr><td style="padding:5px 0;font-size:12px;color:#64748b;width:130px">Full Name</td><td style="font-size:13px;color:#e2e8f0">${user.full_name}</td></tr>
-        <tr><td style="padding:5px 0;font-size:12px;color:#64748b">Email</td><td style="font-size:13px;color:#e2e8f0;font-family:monospace">${user.email}</td></tr>
-        <tr><td style="padding:5px 0;font-size:12px;color:#64748b">Role</td><td style="font-size:13px;color:#818cf8;font-weight:700">${user.role}</td></tr>
-        <tr><td style="padding:5px 0;font-size:12px;color:#64748b">Department</td><td style="font-size:13px;color:#e2e8f0">${user.department || '—'}</td></tr>
+      <p style="font-size:13px;color:#cbd5e1;margin-bottom:12px">Hello <strong>${user.full_name}</strong>,</p>
+      <p style="font-size:13px;color:#94a3b8;line-height:1.6">
+        Welcome to <strong>CampusReserve</strong> — the centralized reservation and equipment allocation engine for MIT World Peace University.
+      </p>
+      <table role="presentation" width="100%" style="background:#0d1424;border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:14px;margin:16px 0;font-size:13px">
+        <tr><td style="color:#64748b;padding:4px 0">Email:</td><td style="color:#f8fafc;font-family:monospace">${user.email}</td></tr>
+        <tr><td style="color:#64748b;padding:4px 0">Department:</td><td style="color:#f8fafc">${user.department || 'General'}</td></tr>
+        <tr><td style="color:#64748b;padding:4px 0">Role:</td><td style="color:#38bdf8;font-weight:600">${user.role}</td></tr>
       </table>
-      <p style="font-size:12px;color:#64748b;margin-top:16px">You can now reserve laboratories, seminar halls, and specialized hardware at http://localhost:3000</p>
     `
   });
-  return dispatchEmail({ userId: user.id, recipientEmail: user.email, eventType: 'REGISTRATION', subject, html });
+  return dispatchEmail({ userId: user.id, recipientEmail: user.email, eventType: 'USER_REGISTERED', subject, html });
 }
 
 // ── Booking created email ─────────────────────────────────────────────────────
@@ -213,17 +295,22 @@ async function sendBookingRejectedEmail(user, booking, resource, reason) {
   return dispatchEmail({ userId: user.id, recipientEmail: user.email, eventType: 'BOOKING_REJECTED', subject, html });
 }
 
-// ── Booking cancelled email ───────────────────────────────────────────────────
-async function sendBookingCancelledEmail(user, booking, resource) {
-  const subject = `[Cancelled] Booking ${booking.booking_code}`;
+// ── Booking cancelled / revoked email ─────────────────────────────────────────
+async function sendBookingCancelledEmail(user, booking, resource, reason) {
+  const subject = `[Cancelled] Booking ${booking.booking_code} – ${resource?.name || 'Facility'}`;
   const html = buildEmailTemplate({
-    title: 'Booking Cancelled',
-    subtitle: 'The facility reservation has been released.',
+    title: 'Booking Revoked / Cancelled',
+    subtitle: 'The facility reservation has been cancelled and the slot released.',
     badgeText: 'CANCELLED',
     badgeColor: '#94a3b8',
     bodyHtml: `
       <p style="font-size:13px;color:#cbd5e1;margin-bottom:12px">Hello <strong>${user.full_name}</strong>,</p>
       ${renderBookingTable(booking, resource)}
+      ${reason ? `
+      <div style="margin-top:14px;padding:12px;border-radius:6px;border-left:3px solid #94a3b8;background:rgba(148,163,184,0.06)">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase">Cancellation Reason:</div>
+        <div style="font-size:13px;color:#cbd5e1;margin-top:4px">${reason}</div>
+      </div>` : ''}
     `
   });
   return dispatchEmail({ userId: user.id, recipientEmail: user.email, eventType: 'BOOKING_CANCELLED', subject, html });
@@ -254,19 +341,28 @@ async function sendCheckOutEmail(user, booking, resource) {
   return dispatchEmail({ userId: user.id, recipientEmail: user.email, eventType: 'CHECK_OUT', subject, html });
 }
 
-
 // ── Universal Reservation Notification Dispatcher ──────────────────────────
 async function sendReservationNotification({ to, subject, details, status }) {
-  const isApproved = status === "APPROVED";
-  const isRejected = status === "REJECTED";
-  const isPending  = status === "PENDING";
-  const badgeColor = isApproved ? "#34d399" : isRejected ? "#f87171" : "#fbbf24";
+  const isApproved  = status === "APPROVED";
+  const isRejected  = status === "REJECTED";
+  const isPending   = status === "PENDING";
+  const isCancelled = status === "CANCELLED";
+
+  const badgeColor = isApproved ? "#34d399" : isRejected ? "#f87171" : isCancelled ? "#94a3b8" : "#fbbf24";
   const badgeText  = status || "NOTIFICATION";
-  const title      = isApproved ? "Facility Booking Approved ✓" : isRejected ? "Booking Request Declined" : "Reservation Status Update";
+  const title      = isApproved
+    ? "Facility Booking Approved ✓"
+    : isRejected
+    ? "Booking Request Declined"
+    : isCancelled
+    ? "Facility Booking Revoked / Cancelled"
+    : "Reservation Status Update";
   const subtitle   = isApproved
     ? "Faculty / Facility Management has formally approved your reservation."
     : isRejected
     ? "The requested facility cannot be allocated for the specified time slot."
+    : isCancelled
+    ? "Your facility allocation has been revoked or cancelled."
     : "Your reservation request status has been updated.";
 
   const bodyHtml = typeof details === "string" ? `<p style="font-size:13px;color:#cbd5e1;margin-bottom:12px">${details}</p>` : `
@@ -283,7 +379,7 @@ async function sendReservationNotification({ to, subject, details, status }) {
 
   return dispatchEmail({
     recipientEmail: to,
-    eventType: isApproved ? "BOOKING_APPROVED" : isRejected ? "BOOKING_REJECTED" : "BOOKING_UPDATED",
+    eventType: isApproved ? "BOOKING_APPROVED" : isRejected ? "BOOKING_REJECTED" : isCancelled ? "BOOKING_CANCELLED" : "BOOKING_UPDATED",
     subject: subject || `[${status}] CampusReserve Reservation Notification`,
     html
   });

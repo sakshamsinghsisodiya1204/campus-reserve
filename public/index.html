@@ -4,33 +4,49 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CampusReserve — MIT-WPU Academic Allocation Portal</title>
-  <meta name="description" content="University facility booking and resource allocation portal powered by CampusReserve.">
+  <meta name="description" content="Conflict-free academic facility, laboratory, and specialized hardware reservation system with zero-collision scheduling and real-time email dispatch.">
+
+  <!-- Google Fonts: Inter (editorial text) & JetBrains Mono (booking codes/timestamps) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome CDN for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- ═══ LEFT SIDEBAR ═══════════════════════════════════════════════════════ -->
-  <aside class="sidebar" id="sidebar">
+<!-- Toast Notification Container -->
+<div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
-    <!-- Brand -->
+<!-- App Shell Wrapper -->
+<div class="app-layout">
+
+  <!-- ═══ LEFT SIDEBAR ═══════════════════════════════════════════════════════ -->
+  <aside class="sidebar">
+    <!-- Brand / University Header -->
     <div class="sidebar-brand">
-      <div class="brand-avatar">CR</div>
-      <div class="brand-text-block">
-        <span class="brand-name">CampusReserve</span>
-        <span class="brand-inst">MIT World Peace University</span>
+      <div class="brand-crest">
+        <i class="fa-solid fa-graduation-cap"></i>
+      </div>
+      <div class="brand-info">
+        <span class="brand-title">MIT World Peace University</span>
+        <span class="brand-sub">Campus Allocation Engine</span>
       </div>
     </div>
 
-    <!-- Navigation -->
+    <!-- Navigation Section -->
     <nav class="sidebar-nav">
       <span class="nav-section-label">Workspace</span>
       <button class="sidebar-btn active" data-tab="tab-reserve" id="nav-reserve">
         <i class="fa-regular fa-calendar-plus"></i>
         <span>Book a Facility</span>
+      </button>
+      <button class="sidebar-btn" data-tab="tab-resources" id="nav-resources">
+        <i class="fa-solid fa-layer-group"></i>
+        <span>Resource Catalog</span>
       </button>
       <button class="sidebar-btn" data-tab="tab-my-bookings" id="nav-my-bookings">
         <i class="fa-solid fa-list-check"></i>
@@ -58,6 +74,11 @@
         <span>Mail Telemetry</span>
         <span class="nav-pill pill-live">LIVE</span>
       </button>
+      <button class="sidebar-btn" data-tab="tab-notifications" id="nav-notifications">
+        <i class="fa-regular fa-bell"></i>
+        <span>Notifications</span>
+        <span class="nav-pill pill-amber" id="notifBadge">0</span>
+      </button>
     </nav>
 
     <!-- Notification Override / Live Recipient -->
@@ -76,10 +97,12 @@
     <!-- Notification Bell -->
     <div class="sidebar-notif">
       <div class="notif-anchor">
-        <button id="notifBellBtn" class="sidebar-notif-btn">
-          <i class="fa-regular fa-bell"></i>
-          <span>Notifications</span>
-          <span id="notifBadge" class="notif-count">0</span>
+        <button id="notifBellBtn" class="sidebar-notif-btn" data-tab="tab-notifications" title="Click to view notifications">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <i class="fa-regular fa-bell"></i>
+            <span>Quick Alerts</span>
+          </div>
+          <span id="notifFlyoutBadge" class="notif-count">0</span>
         </button>
         <div id="notifFlyout" class="notif-flyout hidden">
           <div class="notif-flyout-head">
@@ -88,6 +111,11 @@
           </div>
           <div id="notifList" class="notif-scroll-area">
             <div class="empty-state">No unread notifications.</div>
+          </div>
+          <div class="notif-flyout-foot">
+            <button type="button" class="notif-view-tab-btn" onclick="switchTab('tab-notifications'); document.getElementById('notifFlyout')?.classList.add('hidden');">
+              View All in Notifications Tab <i class="fa-solid fa-arrow-right"></i>
+            </button>
           </div>
         </div>
       </div>
@@ -121,7 +149,7 @@
 
       <div class="top-search-wrap">
         <i class="fa-solid fa-magnifying-glass search-icon"></i>
-        <input type="text" class="top-search-input" placeholder="Search facilities, equipment, slots…">
+        <input type="text" id="globalSearchInput" class="top-search-input" placeholder="Search facilities, equipment, slots…">
       </div>
 
       <!-- Demo Simulator Segmented Pills -->
@@ -137,6 +165,10 @@
           <i class="fa-solid fa-user-shield"></i> Admin
         </button>
       </div>
+      <button type="button" class="top-bell-btn" id="topNotifBellBtn" title="View Notifications" onclick="switchTab('tab-notifications')">
+        <i class="fa-regular fa-bell"></i>
+        <span class="top-bell-badge" id="topNotifBadge">0</span>
+      </button>
     </header>
 
     <!-- Hero Greeting Section -->
@@ -153,37 +185,53 @@
 
     <!-- Top Metrics Bar -->
     <div class="metrics-bar" id="metricsBar">
-      <div class="metric-card">
+      <div class="metric-card metric-card--clickable" id="metCard-active"
+           role="button" tabindex="0"
+           title="View your approved active bookings"
+           aria-label="Active Bookings — click to view">
         <div class="metric-icon-circle mic-blue"><i class="fa-solid fa-bolt"></i></div>
         <div class="metric-details">
           <div class="metric-val" id="metUpcoming">—</div>
           <div class="metric-label">Active Bookings</div>
         </div>
+        <span class="metric-drill-arrow"><i class="fa-solid fa-arrow-right"></i></span>
       </div>
-      <div class="metric-card">
+      <div class="metric-card metric-card--clickable" id="metCard-resources"
+           role="button" tabindex="0"
+           title="Browse the full campus resource catalog"
+           aria-label="Total Resources — click to browse catalog">
         <div class="metric-icon-circle mic-peach"><i class="fa-solid fa-building"></i></div>
         <div class="metric-details">
           <div class="metric-val" id="metCatalog">—</div>
           <div class="metric-label">Total Resources</div>
         </div>
+        <span class="metric-drill-arrow"><i class="fa-solid fa-arrow-right"></i></span>
       </div>
-      <div class="metric-card">
+      <div class="metric-card metric-card--clickable" id="metCard-queue"
+           role="button" tabindex="0"
+           title="Open the approval review queue"
+           aria-label="Review Queue — click to open approvals">
         <div class="metric-icon-circle mic-amber"><i class="fa-solid fa-hourglass-half"></i></div>
         <div class="metric-details">
           <div class="metric-val" id="metQueue">—</div>
           <div class="metric-label">Review Queue</div>
         </div>
+        <span class="metric-drill-arrow"><i class="fa-solid fa-arrow-right"></i></span>
       </div>
-      <div class="metric-card">
+      <div class="metric-card metric-card--clickable" id="metCard-mine"
+           role="button" tabindex="0"
+           title="View all my reservations"
+           aria-label="My Bookings — click to view all">
         <div class="metric-icon-circle mic-green"><i class="fa-solid fa-calendar-check"></i></div>
         <div class="metric-details">
           <div class="metric-val" id="metMyTotal">—</div>
           <div class="metric-label">My Bookings</div>
         </div>
+        <span class="metric-drill-arrow"><i class="fa-solid fa-arrow-right"></i></span>
       </div>
     </div>
 
-    <!-- ── TAB: Book a Facility ─────────────────────────────────────────────── -->
+    <!-- ── TAB 1: Book a Facility ───────────────────────────────────────────── -->
     <section id="tab-reserve" class="tab-panel active">
       <div class="panel-header">
         <div>
@@ -253,7 +301,40 @@
       </div>
     </section>
 
-    <!-- ── TAB: My Bookings ────────────────────────────────────────────────── -->
+    <!-- ── TAB 2: Resource Catalog & Inventory Management ──────────────────── -->
+    <section id="tab-resources" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Campus Resource Catalog &amp; Inventory</h2>
+          <p class="panel-desc">Browse academic venues, research labs, and hardware inventory. Faculty &amp; Admins can manage listings.</p>
+        </div>
+        <div class="header-actions">
+          <button id="openAddResourceBtn" class="btn-primary hidden">
+            <i class="fa-solid fa-plus"></i> Add New Resource
+          </button>
+          <button id="refreshCatalogBtn" class="btn-secondary">
+            <i class="fa-solid fa-rotate-right"></i> Refresh
+          </button>
+        </div>
+      </div>
+
+      <div class="cal-filter-bar" id="resourceFilterBar">
+        <span class="filter-label"><i class="fa-solid fa-filter"></i> Filter:</span>
+        <button class="cal-chip active" data-cat-filter="ALL">All Facilities</button>
+        <button class="cal-chip" data-cat-filter="Laboratory">Laboratories</button>
+        <button class="cal-chip" data-cat-filter="Seminar Hall">Seminar Halls</button>
+        <button class="cal-chip" data-cat-filter="Specialized Hardware">Hardware &amp; Equipment</button>
+        <button class="cal-chip" data-cat-filter="Classroom">Classrooms</button>
+      </div>
+
+      <div id="resourceCatalogGrid" class="resources-catalog-grid">
+        <div class="glass-card tc" style="grid-column:1/-1;padding:36px;color:var(--text-muted)">
+          <i class="fa-solid fa-spinner fa-spin"></i> Loading catalog…
+        </div>
+      </div>
+    </section>
+
+    <!-- ── TAB 3: My Bookings ────────────────────────────────────────────────── -->
     <section id="tab-my-bookings" class="tab-panel">
       <div class="panel-header">
         <div>
@@ -276,7 +357,7 @@
       </div>
     </section>
 
-    <!-- ── TAB: Calendar View ──────────────────────────────────────────────── -->
+    <!-- ── TAB 4: Calendar View ──────────────────────────────────────────────── -->
     <section id="tab-calendar" class="tab-panel">
       <div class="panel-header">
         <div>
@@ -314,7 +395,7 @@
       </div>
     </section>
 
-    <!-- ── TAB: Approval Desk ──────────────────────────────────────────────── -->
+    <!-- ── TAB 5: Approval Desk ──────────────────────────────────────────────── -->
     <section id="tab-approvals" class="tab-panel">
       <div class="panel-header">
         <div>
@@ -332,7 +413,7 @@
       </div>
     </section>
 
-    <!-- ── TAB: Admin Dashboard ─────────────────────────────────────────────── -->
+    <!-- ── TAB 6: Admin Dashboard ─────────────────────────────────────────────── -->
     <section id="tab-admin" class="tab-panel">
       <div class="panel-header">
         <div>
@@ -378,38 +459,58 @@
           </div>
         </div>
         <div class="kpi-card">
-          <div class="metric-icon-circle mic-red"><i class="fa-solid fa-xmark"></i></div>
+          <div class="metric-icon-circle mic-red"><i class="fa-solid fa-ban"></i></div>
           <div class="metric-details">
             <div class="kpi-value" id="kpiRejected">—</div>
-            <div class="kpi-label">Rejected</div>
+            <div class="kpi-label">Declined Requests</div>
           </div>
         </div>
       </div>
-      <div class="admin-split">
+
+      <div class="admin-grid-2">
         <div class="glass-card">
-          <div class="card-header"><h3><i class="fa-solid fa-database" style="color:#ea5b3a"></i> Resource Utilization</h3></div>
+          <div class="card-header">
+            <h3>Facility Utilization Index</h3>
+            <span style="font-size:0.75rem;color:var(--text-muted)">Lifetime</span>
+          </div>
           <div class="table-scroll">
             <table class="data-table">
-              <thead><tr><th>Resource</th><th>Category</th><th style="text-align:center">Total</th><th style="text-align:center">Approved</th><th style="text-align:center">Pending</th><th>Utilization</th></tr></thead>
-              <tbody id="adminUtilizationBody"><tr><td colspan="6" class="tc">Loading…</td></tr></tbody>
+              <thead><tr>
+                <th>Resource</th><th>Category</th><th style="text-align:center">Total</th><th style="text-align:center">Approved</th><th style="text-align:center">Pending</th><th>Load</th>
+              </tr></thead>
+              <tbody id="adminUtilizationBody">
+                <tr><td colspan="6" class="tc">Loading utilization…</td></tr>
+              </tbody>
             </table>
           </div>
         </div>
         <div class="glass-card">
-          <div class="card-header"><h3><i class="fa-solid fa-id-badge" style="color:#ea5b3a"></i> User Role Distribution</h3></div>
-          <div id="adminRoleChart" class="role-chart-area"></div>
-          <div class="card-header" style="margin-top:20px"><h3><i class="fa-solid fa-clock-rotate-left" style="color:#ea5b3a"></i> Recent Activity</h3></div>
-          <div id="adminActivityFeed" class="activity-feed"><div class="tc">Loading…</div></div>
+          <div class="card-header">
+            <h3>User Distribution by Role</h3>
+          </div>
+          <div id="adminRoleChart" class="role-dist-chart">
+            <div class="tc" style="color:var(--text-muted);padding:24px">Loading…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card" style="margin-top:20px">
+        <div class="card-header">
+          <h3>Recent System Allocation Activity</h3>
+          <span style="font-size:0.75rem;color:var(--text-muted)">Last 10 events</span>
+        </div>
+        <div id="adminActivityFeed" class="activity-feed">
+          <div class="tc" style="color:var(--text-muted);padding:24px">Loading…</div>
         </div>
       </div>
     </section>
 
-    <!-- ── TAB: Mail Telemetry ──────────────────────────────────────────────── -->
+    <!-- ── TAB 7: Mail Telemetry & Audit ────────────────────────────────────── -->
     <section id="tab-email-ledger" class="tab-panel">
       <div class="panel-header">
         <div>
-          <h2 class="panel-title">Live Email Dispatch &amp; Telemetry</h2>
-          <p class="panel-desc">Real-time record of all notifications dispatched via Gmail SMTP / Ethereal.</p>
+          <h2 class="panel-title">Outbound Email Telemetry &amp; Dispatch Ledger</h2>
+          <p class="panel-desc">Transparent transaction log of all automated notification emails dispatched via Nodemailer.</p>
         </div>
         <button id="refreshAuditBtn" class="btn-secondary"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
       </div>
@@ -427,6 +528,40 @@
       </div>
     </section>
 
+    <!-- ── TAB 8: Notifications Center ──────────────────────────────────────── -->
+    <section id="tab-notifications" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Notifications &amp; Activity Log</h2>
+          <p class="panel-desc">Real-time alerts for reservation requests, departmental reviews, collision defenses, and dispatch telemetry.</p>
+        </div>
+        <div class="panel-actions-row">
+          <div class="notif-filter-group">
+            <button type="button" class="notif-filter-pill active" id="notifFilterAllBtn" onclick="setNotifFilter('all')">
+              All Alerts (<span id="notifCountAll">0</span>)
+            </button>
+            <button type="button" class="notif-filter-pill" id="notifFilterUnreadBtn" onclick="setNotifFilter('unread')">
+              Unread (<span id="notifCountUnread">0</span>)
+            </button>
+          </div>
+          <button type="button" id="markAllReadTabBtn" class="btn-secondary">
+            <i class="fa-solid fa-check-double"></i> Mark All as Read
+          </button>
+          <button type="button" id="refreshNotifsBtn" class="btn-secondary">
+            <i class="fa-solid fa-rotate-right"></i> Refresh
+          </button>
+        </div>
+      </div>
+      <div class="glass-card" style="padding: 24px;">
+        <div id="tabNotificationsFeed" class="notif-full-feed">
+          <div class="empty-state">
+            <i class="fa-regular fa-bell empty-icon"></i>
+            <p>Loading notifications…</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </main><!-- /workspace -->
 
   <!-- ═══ AUTH MODAL ══════════════════════════════════════════════════════════ -->
@@ -434,15 +569,26 @@
     <div class="modal-box">
       <div class="modal-head">
         <div>
-          <h3 id="authModalTitle">Account Authentication</h3>
-          <p class="modal-sub">Sign in with institutional credentials or create a new profile.</p>
+          <h3 id="authModalTitle">Institutional Authentication</h3>
+          <p class="modal-sub">Sign in with university credentials or select a remembered account.</p>
         </div>
         <button class="btn-icon" id="closeAuthModalBtn">×</button>
       </div>
 
-      <!-- Quick demo seeds -->
+      <!-- Remembered / Recent Accounts Section -->
+      <div id="savedAccountsSection" class="saved-accounts-section">
+        <div class="saved-accounts-header">
+          <span class="saved-accounts-title"><i class="fa-solid fa-clock-rotate-left"></i> Recent &amp; Remembered Accounts</span>
+          <button type="button" id="clearSavedAccountsBtn" class="text-btn">Clear list</button>
+        </div>
+        <div id="savedAccountsList" class="saved-accounts-list">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+      <!-- Quick demo seeds shortcut -->
       <div class="demo-seeds">
-        <span class="seed-label">Quick Demo Access:</span>
+        <span class="seed-label">One-Click Demo Profiles:</span>
         <div class="seed-btns">
           <button type="button" class="seed-btn" onclick="quickFillDemo('student')"><span class="seed-role">Student</span> Saksham</button>
           <button type="button" class="seed-btn" onclick="quickFillDemo('faculty')"><span class="seed-role">Faculty</span> Prof. Yogini</button>
@@ -469,7 +615,7 @@
         <button type="submit" class="btn-primary btn-block" id="loginSubmitBtn">Sign In to Portal &nbsp;→</button>
       </form>
 
-      <!-- Register form -->
+      <!-- Register form (Role restricted strictly to STUDENT or FACULTY) -->
       <form id="registerForm" class="auth-form hidden">
         <div class="field-group">
           <label for="regFullName">Full Name</label>
@@ -477,7 +623,7 @@
         </div>
         <div class="field-group">
           <label for="regEmail">Email Address <span style="color:#ea5b3a;font-size:.75rem">(welcome email dispatched here)</span></label>
-          <input type="email" id="regEmail" placeholder="user@gmail.com or user@mitwpu.edu.in" required>
+          <input type="email" id="regEmail" placeholder="user@mitwpu.edu.in or personal email" required>
         </div>
         <div class="field-row">
           <div class="field-group">
@@ -485,12 +631,14 @@
             <select id="regRole" required>
               <option value="STUDENT">Student</option>
               <option value="FACULTY">Faculty Member</option>
-              <option value="ADMIN">Facility Administrator</option>
             </select>
+            <div class="field-hint" style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">
+              Admin role is restricted to authorized campus staff.
+            </div>
           </div>
           <div class="field-group">
             <label for="regDept">Department</label>
-            <input type="text" id="regDept" placeholder="e.g. CSE" required value="Computer Science">
+            <input type="text" id="regDept" placeholder="e.g. Computer Science" required value="Computer Science">
           </div>
         </div>
         <div class="field-group">
@@ -498,6 +646,71 @@
           <input type="password" id="regPassword" placeholder="Minimum 6 characters" required>
         </div>
         <button type="submit" class="btn-primary btn-block" id="registerSubmitBtn">Create Account &amp; Send Welcome Email</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══ RESOURCE ADD / EDIT MODAL ═══════════════════════════════════════════ -->
+  <div id="resourceModal" class="modal-backdrop hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div>
+          <h3 id="resourceModalTitle">Resource Specifications</h3>
+          <p class="modal-sub">Define physical location, capacity, and clearance rules for this campus asset.</p>
+        </div>
+        <button class="btn-icon" id="closeResourceModalBtn">×</button>
+      </div>
+
+      <form id="resourceForm" style="padding:0 24px 24px">
+        <input type="hidden" id="resEditId">
+
+        <div class="field-group">
+          <label for="resName">Resource Name</label>
+          <input type="text" id="resName" placeholder="e.g. Quantum Computing Simulation Lab" required>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="resCategory">Category</label>
+            <select id="resCategory" required>
+              <option value="Laboratory">Laboratory</option>
+              <option value="Seminar Hall">Seminar Hall</option>
+              <option value="Specialized Hardware">Specialized Hardware</option>
+              <option value="Classroom">Classroom</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="resCapacity">Capacity / Units</label>
+            <input type="number" id="resCapacity" min="1" placeholder="e.g. 40" required>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="resLocation">Campus Location / Room</label>
+          <input type="text" id="resLocation" placeholder="e.g. Innovation Center, Floor 4" required>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="resApproval">Clearance Requirement</label>
+            <select id="resApproval" required>
+              <option value="0">Instant Clearance (Open Access)</option>
+              <option value="1">Requires Approval (Faculty Clearance)</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="resStatus">Operational Status</label>
+            <select id="resStatus" required>
+              <option value="0">Active &amp; Available</option>
+              <option value="1">Under Maintenance / Inactive</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-foot" style="padding:16px 0 0;margin-top:16px;border-top:1px solid rgba(0,0,0,0.06);display:flex;justify-content:flex-end;gap:10px">
+          <button type="button" id="cancelResourceModalBtn" class="btn-secondary">Cancel</button>
+          <button type="submit" id="saveResourceSubmitBtn" class="btn-primary">Save Resource Listing</button>
+        </div>
       </form>
     </div>
   </div>
@@ -522,9 +735,31 @@
     </div>
   </div>
 
-  <!-- Toast container -->
-  <div id="toastContainer" class="toast-stack"></div>
 
-  <script src="app.js"></script>
+  <!-- ═══ ADMIN REVOCATION MODAL ═════════════════════════════════════════════ -->
+  <div id="adminRevokeModal" class="modal-backdrop hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div>
+          <h3 style="color:#dc2626"><i class="fa-solid fa-triangle-exclamation"></i> Administrative Revocation</h3>
+          <p class="modal-sub">Revoke booking <strong id="adminRevokeBookingCode"></strong> and release campus resource slot.</p>
+        </div>
+        <button class="btn-icon" id="closeAdminRevokeModalBtn">×</button>
+      </div>
+      <div style="padding:0 24px 24px">
+        <label for="adminRevokeReasonInput" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:6px;color:var(--text-main,#2d3748)">Revocation Justification / Reason (Optional)</label>
+        <textarea id="adminRevokeReasonInput" rows="3" placeholder="e.g., Emergency departmental maintenance or administrative reallocation…" style="width:100%;box-sizing:border-box"></textarea>
+        <p style="font-size:0.75rem;color:var(--text-muted,#718096);margin-top:6px">An automated cancellation notification will be dispatched immediately to the requester email.</p>
+      </div>
+      <div class="modal-foot">
+        <button id="cancelAdminRevokeBtn" class="btn-secondary">Dismiss</button>
+        <button id="confirmAdminRevokeBtn" class="btn-danger" style="background:#dc2626;color:#fff;border-color:#b91c1c">Revoke &amp; Release Slot</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app-layout -->
+
+<script src="app.js"></script>
 </body>
 </html>

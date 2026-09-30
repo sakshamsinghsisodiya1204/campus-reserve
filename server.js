@@ -7,6 +7,7 @@ const db = require('./database');
 const { authenticateToken, requireRole } = require('./middleware/auth');
 const authRouter = require('./routes/auth');
 const reservationsRouter = require('./routes/reservations');
+const resourcesRouter = require('./routes/resources');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,53 +41,7 @@ function dbAll(query, params) {
 // ── Mount Sub-Routers ────────────────────────────────────────────────────────
 app.use('/api/auth', authRouter);
 app.use('/api/reservations', reservationsRouter);
-
-// ── Resources Routes ──────────────────────────────────────────────────────────
-
-// GET /api/resources
-app.get('/api/resources', authenticateToken, async (req, res) => {
-  try {
-    const resources = await dbAll('SELECT * FROM resources ORDER BY category, name', []);
-    res.json({ resources, count: resources.length });
-  } catch (err) {
-    console.error('[GET /resources]', err);
-    res.status(500).json({ error: 'Failed to fetch resources.' });
-  }
-});
-
-// GET /api/resources/:id/availability?date=YYYY-MM-DD
-app.get('/api/resources/:id/availability', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { date } = req.query;
-
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({ error: 'A valid date query parameter (YYYY-MM-DD) is required.' });
-    }
-
-    const resource = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
-    if (!resource) return res.status(404).json({ error: 'Resource not found.' });
-
-    const bookings = await dbAll(
-      `SELECT booking_code, start_time, end_time, status, purpose
-       FROM reservations
-       WHERE resource_id = ? AND booking_date = ? AND status IN ('PENDING', 'APPROVED', 'CHECKED_IN')
-       ORDER BY start_time`,
-      [id, date]
-    );
-
-    res.json({
-      resource: { id: resource.id, name: resource.name, location: resource.location, capacity: resource.capacity },
-      date,
-      is_under_maintenance: resource.is_under_maintenance === 1,
-      booked_slots: bookings,
-      slots_count: bookings.length
-    });
-  } catch (err) {
-    console.error('[GET /resources/:id/availability]', err);
-    res.status(500).json({ error: 'Failed to fetch availability.' });
-  }
-});
+app.use('/api/resources', resourcesRouter);
 
 // ── Notifications Routes ──────────────────────────────────────────────────────
 
@@ -136,7 +91,6 @@ app.patch('/api/notifications/:id/read', authenticateToken, async (req, res) => 
 // ── Email Logs & Audit Routes ─────────────────────────────────────────────────
 
 // GET /api/admin/email-logs
-// Open to all authenticated users so researchers can inspect their own dispatches & demo testers can evaluate live email delivery
 app.get('/api/admin/email-logs', authenticateToken, async (req, res) => {
   try {
     let query = `
@@ -161,7 +115,6 @@ app.get('/api/admin/email-logs', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch email logs.' });
   }
 });
-
 
 // ── Admin Dashboard Stats Route ────────────────────────────────────────────
 // GET /api/admin/stats (ADMIN only)
@@ -244,13 +197,12 @@ app.get('/api/calendar', authenticateToken, async (req, res) => {
   }
 });
 
-
 // ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'CampusReserve API',
-    version: '2.0.0',
+    version: '2.4.0',
     timestamp: new Date().toISOString()
   });
 });
@@ -267,7 +219,7 @@ app.use((err, req, res, next) => {
 });
 
 // ── Start Server ──────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n============================================================`);
   console.log(`🏛️  CampusReserve Academic System running on http://localhost:${PORT}`);
   console.log(`   • Register / Login: /api/auth/register & /api/auth/login`);

@@ -33,9 +33,18 @@ router.post('/register', async (req, res) => {
     }
 
     const cleanEmail = email.toLowerCase().trim();
-    const cleanRole = role && ['STUDENT', 'FACULTY', 'ADMIN'].includes(role.toUpperCase()) 
-      ? role.toUpperCase() 
-      : 'STUDENT';
+
+    // ── STRICT ADMIN LOCK ─────────────────────────────────────────────────────
+    // Self-registration is strictly restricted to STUDENT and FACULTY roles.
+    // Hard-lock the ADMIN role: only the designated institutional admin account is authorized.
+    if (role && role.toUpperCase() === 'ADMIN') {
+      return res.status(403).json({
+        error: 'Admin registration is restricted. Only the designated administrator account is authorized.'
+      });
+    }
+
+    // Role guardrail: default to STUDENT if not FACULTY
+    const cleanRole = (role && role.toUpperCase() === 'FACULTY') ? 'FACULTY' : 'STUDENT';
     const cleanDept = department ? department.trim() : 'General Studies';
 
     // Verify uniqueness
