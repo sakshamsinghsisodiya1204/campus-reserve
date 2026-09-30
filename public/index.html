@@ -18,7 +18,7 @@
 
     <!-- Brand -->
     <div class="sidebar-brand">
-      <div class="brand-mark">✦</div>
+      <div class="brand-avatar">CR</div>
       <div class="brand-text-block">
         <span class="brand-name">CampusReserve</span>
         <span class="brand-inst">MIT World Peace University</span>
@@ -42,7 +42,7 @@
         <span>Calendar View</span>
       </button>
 
-      <span class="nav-section-label" style="margin-top:12px">Operations</span>
+      <span class="nav-section-label" style="margin-top:16px">Operations</span>
       <button class="sidebar-btn restricted-nav hidden" data-tab="tab-approvals" id="approvalsTabBtn">
         <i class="fa-solid fa-signature"></i>
         <span>Approval Desk</span>
@@ -62,7 +62,7 @@
 
     <!-- Notification Override / Live Recipient -->
     <div class="sidebar-recipient-box">
-      <div class="recipient-label"><i class="fa-solid fa-paper-plane"></i> Live Dispatch Target</div>
+      <div class="recipient-label"><i class="fa-solid fa-paper-plane" style="color:#ea5b3a"></i> Live Dispatch Target</div>
       <div class="recipient-display" id="currentRecipientDisplay">—</div>
       <div class="override-row">
         <input type="email" id="overrideEmailInput" class="override-input" placeholder="Override recipient email…">
@@ -70,16 +70,16 @@
           <i class="fa-solid fa-check"></i>
         </button>
       </div>
-      <div class="override-hint">Emails will be sent to the overridden address</div>
+      <div class="override-hint">Emails will dispatch to this override target</div>
     </div>
 
-    <!-- Notification bell -->
+    <!-- Notification Bell -->
     <div class="sidebar-notif">
       <div class="notif-anchor">
         <button id="notifBellBtn" class="sidebar-notif-btn">
           <i class="fa-regular fa-bell"></i>
-          <span id="notifBadge" class="notif-count">0</span>
           <span>Notifications</span>
+          <span id="notifBadge" class="notif-count">0</span>
         </button>
         <div id="notifFlyout" class="notif-flyout hidden">
           <div class="notif-flyout-head">
@@ -101,7 +101,7 @@
         <div class="profile-email" id="userEmailLabel">—</div>
         <span class="role-badge" id="userRoleBadge">GUEST</span>
       </div>
-      <button id="authModalToggleBtn" class="profile-switch-btn" title="Switch / Sign Out">
+      <button id="authModalToggleBtn" class="profile-switch-btn" title="Switch Account / Sign In">
         <i class="fa-solid fa-arrow-right-arrow-left"></i>
       </button>
     </div>
@@ -110,41 +110,76 @@
   <!-- ═══ MAIN WORKSPACE ══════════════════════════════════════════════════════ -->
   <main class="workspace" id="mainWorkspace">
 
-    <!-- Demo Role Switcher Bar -->
-    <div class="demo-role-bar">
-      <span class="demo-role-label"><i class="fa-solid fa-bolt"></i> Demo Simulator:</span>
-      <button type="button" class="demo-role-pill" id="demoStudentPill" onclick="quickFillDemo('student')">
-        <i class="fa-solid fa-graduation-cap"></i> Student (Saksham)
-      </button>
-      <button type="button" class="demo-role-pill" id="demoFacultyPill" onclick="quickFillDemo('faculty')">
-        <i class="fa-solid fa-chalkboard-user"></i> Faculty (Prof. Yogini)
-      </button>
-      <button type="button" class="demo-role-pill" id="demoAdminPill" onclick="quickFillDemo('admin')">
-        <i class="fa-solid fa-user-shield"></i> Admin (Facility Mgr)
-      </button>
+    <!-- Top Utility Header Bar -->
+    <header class="top-utility-bar">
+      <div class="top-left-brand">
+        <div class="top-badge">CR</div>
+        <div class="top-title-wrap">
+          <span class="top-title">CampusReserve <span class="top-sep">/</span> <span class="top-sub">Portal</span></span>
+        </div>
+      </div>
+
+      <div class="top-search-wrap">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" class="top-search-input" placeholder="Search facilities, equipment, slots…">
+      </div>
+
+      <!-- Demo Simulator Segmented Pills -->
+      <div class="demo-role-bar">
+        <span class="demo-role-label"><i class="fa-solid fa-bolt"></i> Role:</span>
+        <button type="button" class="demo-role-pill" id="demoStudentPill" onclick="quickFillDemo('student')">
+          <i class="fa-solid fa-graduation-cap"></i> Student
+        </button>
+        <button type="button" class="demo-role-pill" id="demoFacultyPill" onclick="quickFillDemo('faculty')">
+          <i class="fa-solid fa-chalkboard-user"></i> Faculty
+        </button>
+        <button type="button" class="demo-role-pill" id="demoAdminPill" onclick="quickFillDemo('admin')">
+          <i class="fa-solid fa-user-shield"></i> Admin
+        </button>
+      </div>
+    </header>
+
+    <!-- Hero Greeting Section -->
+    <div class="hero-greeting-section">
+      <div class="hero-text-block">
+        <h1 class="hero-title">Hey, <span id="heroUserName">Saksham</span> 👋</h1>
+        <p class="hero-subtitle">Reserve university labs, halls, and equipment conflict-free.</p>
+      </div>
+      <div class="hero-date-pill">
+        <i class="fa-regular fa-calendar-check" style="color:#ea5b3a"></i>
+        <span id="heroDateDisplay">30 Wed, September</span>
+      </div>
     </div>
 
-    <!-- Top metrics bar -->
+    <!-- Top Metrics Bar -->
     <div class="metrics-bar" id="metricsBar">
       <div class="metric-card">
-        <i class="fa-solid fa-bolt metric-icon teal"></i>
-        <div class="metric-val" id="metUpcoming">—</div>
-        <div class="metric-label">Active Bookings</div>
+        <div class="metric-icon-circle mic-blue"><i class="fa-solid fa-bolt"></i></div>
+        <div class="metric-details">
+          <div class="metric-val" id="metUpcoming">—</div>
+          <div class="metric-label">Active Bookings</div>
+        </div>
       </div>
       <div class="metric-card">
-        <i class="fa-solid fa-building metric-icon violet"></i>
-        <div class="metric-val" id="metCatalog">—</div>
-        <div class="metric-label">Total Resources</div>
+        <div class="metric-icon-circle mic-peach"><i class="fa-solid fa-building"></i></div>
+        <div class="metric-details">
+          <div class="metric-val" id="metCatalog">—</div>
+          <div class="metric-label">Total Resources</div>
+        </div>
       </div>
       <div class="metric-card">
-        <i class="fa-solid fa-hourglass-half metric-icon amber"></i>
-        <div class="metric-val" id="metQueue">—</div>
-        <div class="metric-label">Review Queue</div>
+        <div class="metric-icon-circle mic-amber"><i class="fa-solid fa-hourglass-half"></i></div>
+        <div class="metric-details">
+          <div class="metric-val" id="metQueue">—</div>
+          <div class="metric-label">Review Queue</div>
+        </div>
       </div>
       <div class="metric-card">
-        <i class="fa-solid fa-calendar-check metric-icon green"></i>
-        <div class="metric-val" id="metMyTotal">—</div>
-        <div class="metric-label">My Bookings</div>
+        <div class="metric-icon-circle mic-green"><i class="fa-solid fa-calendar-check"></i></div>
+        <div class="metric-details">
+          <div class="metric-val" id="metMyTotal">—</div>
+          <div class="metric-label">My Bookings</div>
+        </div>
       </div>
     </div>
 
@@ -189,7 +224,7 @@
               <input type="hidden" id="startTime">
               <input type="hidden" id="endTime">
               <div class="selected-slot-display hidden" id="selectedSlotDisplay">
-                <i class="fa-regular fa-clock"></i> <span id="selectedSlotText"></span>
+                <i class="fa-regular fa-clock" style="color:#ea5b3a"></i> <span id="selectedSlotText"></span>
                 <button type="button" id="clearSlotBtn" class="clear-slot-btn">×</button>
               </div>
             </div>
@@ -199,9 +234,8 @@
               <textarea id="purposeInput" rows="3" placeholder="Briefly describe your session objective…" required></textarea>
             </div>
 
-            <button type="submit" class="btn-glow" id="submitReservationBtn">
-              <i class="fa-solid fa-check-circle"></i>
-              Confirm Reservation
+            <button type="submit" class="btn-primary" id="submitReservationBtn">
+              Confirm Reservation &nbsp;→
             </button>
           </form>
         </div>
@@ -209,7 +243,7 @@
         <!-- Schedule at a Glance -->
         <div class="glass-card schedule-card">
           <div class="card-header">
-            <h3><i class="fa-regular fa-clock" style="color:#8b5cf6"></i> Schedule at a Glance</h3>
+            <h3><i class="fa-regular fa-clock" style="color:#ea5b3a"></i> Schedule at a Glance</h3>
             <button id="refreshScheduleBtn" class="btn-icon" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
           </div>
           <div id="scheduleTimeline" class="schedule-timeline">
@@ -291,9 +325,9 @@
       </div>
       <div id="approvals-list" class="approvals-grid">
         <div class="empty-approval-state glass-card" style="grid-column:1/-1;text-align:center;padding:48px 24px">
-          <div style="font-size:2.5rem;color:#34d399;margin-bottom:12px"><i class="fa-solid fa-clipboard-check"></i></div>
-          <h3 style="font-size:1.1rem;font-weight:600;color:var(--text-1);margin-bottom:6px">No pending reservations awaiting clearance.</h3>
-          <p style="font-size:0.85rem;color:var(--text-3)">All submitted facility requests have been processed.</p>
+          <div style="font-size:2.5rem;color:#10b981;margin-bottom:12px"><i class="fa-solid fa-clipboard-check"></i></div>
+          <h3 style="font-size:1.1rem;font-weight:600;color:var(--text-main);margin-bottom:6px">No pending reservations awaiting clearance.</h3>
+          <p style="font-size:0.85rem;color:var(--text-muted)">All submitted facility and laboratory requests have been processed.</p>
         </div>
       </div>
     </section>
@@ -308,16 +342,52 @@
         <button id="refreshAdminBtn" class="btn-secondary"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
       </div>
       <div class="admin-kpi-grid" id="adminKpiGrid">
-        <div class="kpi-card kpi-blue">  <i class="fa-solid fa-users kpi-icon"></i><div class="kpi-value" id="kpiUsers">—</div><div class="kpi-label">Registered Users</div></div>
-        <div class="kpi-card kpi-violet"><i class="fa-solid fa-building kpi-icon"></i><div class="kpi-value" id="kpiResources">—</div><div class="kpi-label">Active Resources</div></div>
-        <div class="kpi-card kpi-green"> <i class="fa-solid fa-calendar-check kpi-icon"></i><div class="kpi-value" id="kpiTotal">—</div><div class="kpi-label">Total Reservations</div></div>
-        <div class="kpi-card kpi-amber"> <i class="fa-solid fa-hourglass-half kpi-icon"></i><div class="kpi-value" id="kpiPending">—</div><div class="kpi-label">Pending Approvals</div></div>
-        <div class="kpi-card kpi-teal">  <i class="fa-solid fa-bolt kpi-icon"></i><div class="kpi-value" id="kpiToday">—</div><div class="kpi-label">Approved Today</div></div>
-        <div class="kpi-card kpi-red">   <i class="fa-solid fa-xmark kpi-icon"></i><div class="kpi-value" id="kpiRejected">—</div><div class="kpi-label">Rejected</div></div>
+        <div class="kpi-card">
+          <div class="metric-icon-circle mic-blue"><i class="fa-solid fa-users"></i></div>
+          <div class="metric-details">
+            <div class="kpi-value" id="kpiUsers">—</div>
+            <div class="kpi-label">Registered Users</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="metric-icon-circle mic-peach"><i class="fa-solid fa-building"></i></div>
+          <div class="metric-details">
+            <div class="kpi-value" id="kpiResources">—</div>
+            <div class="kpi-label">Active Resources</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="metric-icon-circle mic-green"><i class="fa-solid fa-calendar-check"></i></div>
+          <div class="metric-details">
+            <div class="kpi-value" id="kpiTotal">—</div>
+            <div class="kpi-label">Total Reservations</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="metric-icon-circle mic-amber"><i class="fa-solid fa-hourglass-half"></i></div>
+          <div class="metric-details">
+            <div class="kpi-value" id="kpiPending">—</div>
+            <div class="kpi-label">Pending Approvals</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="metric-icon-circle mic-blue"><i class="fa-solid fa-bolt"></i></div>
+          <div class="metric-details">
+            <div class="kpi-value" id="kpiToday">—</div>
+            <div class="kpi-label">Approved Today</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="metric-icon-circle mic-red"><i class="fa-solid fa-xmark"></i></div>
+          <div class="metric-details">
+            <div class="kpi-value" id="kpiRejected">—</div>
+            <div class="kpi-label">Rejected</div>
+          </div>
+        </div>
       </div>
       <div class="admin-split">
         <div class="glass-card">
-          <div class="card-header"><h3><i class="fa-solid fa-database" style="color:#8b5cf6"></i> Resource Utilization</h3></div>
+          <div class="card-header"><h3><i class="fa-solid fa-database" style="color:#ea5b3a"></i> Resource Utilization</h3></div>
           <div class="table-scroll">
             <table class="data-table">
               <thead><tr><th>Resource</th><th>Category</th><th style="text-align:center">Total</th><th style="text-align:center">Approved</th><th style="text-align:center">Pending</th><th>Utilization</th></tr></thead>
@@ -326,9 +396,9 @@
           </div>
         </div>
         <div class="glass-card">
-          <div class="card-header"><h3><i class="fa-solid fa-id-badge" style="color:#8b5cf6"></i> User Role Distribution</h3></div>
+          <div class="card-header"><h3><i class="fa-solid fa-id-badge" style="color:#ea5b3a"></i> User Role Distribution</h3></div>
           <div id="adminRoleChart" class="role-chart-area"></div>
-          <div class="card-header" style="margin-top:20px"><h3><i class="fa-solid fa-clock-rotate-left" style="color:#8b5cf6"></i> Recent Activity</h3></div>
+          <div class="card-header" style="margin-top:20px"><h3><i class="fa-solid fa-clock-rotate-left" style="color:#ea5b3a"></i> Recent Activity</h3></div>
           <div id="adminActivityFeed" class="activity-feed"><div class="tc">Loading…</div></div>
         </div>
       </div>
@@ -396,7 +466,7 @@
           <label for="loginPassword">Password</label>
           <input type="password" id="loginPassword" placeholder="••••••••" required>
         </div>
-        <button type="submit" class="btn-glow" id="loginSubmitBtn">Sign In to Portal</button>
+        <button type="submit" class="btn-primary btn-block" id="loginSubmitBtn">Sign In to Portal &nbsp;→</button>
       </form>
 
       <!-- Register form -->
@@ -406,7 +476,7 @@
           <input type="text" id="regFullName" placeholder="e.g. Saksham Sisodiya" required>
         </div>
         <div class="field-group">
-          <label for="regEmail">Email Address <span style="color:#8b5cf6;font-size:.75rem">(welcome email dispatched here)</span></label>
+          <label for="regEmail">Email Address <span style="color:#ea5b3a;font-size:.75rem">(welcome email dispatched here)</span></label>
           <input type="email" id="regEmail" placeholder="user@gmail.com or user@mitwpu.edu.in" required>
         </div>
         <div class="field-row">
@@ -427,7 +497,7 @@
           <label for="regPassword">Password</label>
           <input type="password" id="regPassword" placeholder="Minimum 6 characters" required>
         </div>
-        <button type="submit" class="btn-glow" id="registerSubmitBtn">Create Account &amp; Send Welcome Email</button>
+        <button type="submit" class="btn-primary btn-block" id="registerSubmitBtn">Create Account &amp; Send Welcome Email</button>
       </form>
     </div>
   </div>

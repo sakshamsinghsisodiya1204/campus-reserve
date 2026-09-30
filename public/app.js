@@ -82,6 +82,8 @@ function syncUI() {
     const initials = u.full_name ? u.full_name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase() : "U";
     if (initEl) initEl.textContent = initials;
     if (nameEl) nameEl.textContent = u.full_name;
+    const heroNameEl = document.getElementById("heroUserName");
+    if (heroNameEl) heroNameEl.textContent = u.full_name.split(" ")[0];
     if (emailEl) emailEl.textContent = u.email;
     if (roleEl) roleEl.textContent = u.role;
     if (recipEl) recipEl.textContent = state.overrideEmail || u.email;
@@ -95,6 +97,8 @@ function syncUI() {
   } else {
     if (initEl) initEl.textContent = "?";
     if (nameEl) nameEl.textContent = "Not Signed In";
+    const heroNameEl = document.getElementById("heroUserName");
+    if (heroNameEl) heroNameEl.textContent = "Guest";
     if (emailEl) emailEl.textContent = "—";
     if (roleEl) roleEl.textContent = "GUEST";
     if (recipEl) recipEl.textContent = "—";
@@ -774,6 +778,16 @@ async function restoreSession() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Set dynamic hero date
+  const heroDateEl = document.getElementById("heroDateDisplay");
+  if (heroDateEl) {
+    const d = new Date();
+    const dayNum = d.getDate();
+    const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+    const monthName = d.toLocaleDateString("en-US", { month: "long" });
+    heroDateEl.textContent = `${dayNum} ${dayName}, ${monthName}`;
+  }
+
   // Set default booking date
   const today = new Date().toISOString().split("T")[0];
   const dateInput = document.getElementById("bookingDate");
